@@ -1,10 +1,62 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#ifdef _WIN32
+#include <io.h>
+#define F_OK 0
+#define access _access
+#else
+#include <unistd.h>
+#endif
 #include <stdint.h>
 
 #include "util.h"
 #include "crypto_aead.h"
 #include "api.h"
+
+static int streq(const char *a, const char *b) {
+    return strcmp(a, b) == 0;
+}
+
+static const char *need_value(int *i, int argc, char **argv, const char *flag) {
+    if (*i + 1 >= argc) {
+        fprintf(stderr, "Missing value for %s\n", flag);
+        exit(1);
+    }
+    (*i)++;
+    return argv[*i];
+}
+
+#define XSTR(x) STR(x)
+#define STR(x) #x
+
+#ifndef ALGO_NAME
+#define ALGO_NAME "unknown-algo"
+#endif
+#ifndef IMPL_NAME
+#define IMPL_NAME "unknown-impl"
+#endif
+#ifndef BOARD_NAME
+#define BOARD_NAME "pc"
+#endif
+#ifndef VERSION_STR
+#define VERSION_STR "unknown-version"
+#endif
+#ifndef COMPILER_VERSION
+#define COMPILER_VERSION "unknown-version"
+#endif
+#ifndef COMPILER_ID
+#define COMPILER_ID "unknown-compiler"
+#endif
+#ifndef COMPILER_FLAGS
+#define COMPILER_FLAGS "unknown-cflags"
+#endif
+#ifndef TARGET_ARCH
+#define TARGET_ARCH "unknown-arch"
+#endif
+
+#define DEFAULT_ITERATIONS_SMALL 20000
+#define DEFAULT_ITERATIONS_LARGE 2000
 
 static int correctness_and_tamper(size_t mlen, size_t adlen) {
     uint8_t *m = (uint8_t *)malloc(mlen);
@@ -141,83 +193,110 @@ static void bench_one(size_t mlen, size_t adlen, uint64_t iterations, csv_row_t 
     free(m_dec);
 }
 
-int main(void) {
-    /* Config */
-    const char *algorithm = "ascon-aead128";
-    const char *implementation = "reference";
-    const char *version = "TEST";
-    const char *board = "pc";
-    const char *arch = "x86_64";
-    const char *compiler = "gcc";
-    const char *compiler_version = "TEST";
-    const char *cflags = "TEST";
+void print_help(const char *progname) {
+    fprintf(stderr, "Usage: %s [options]\n", progname);
+    fprintf(stderr, "Options:\n");
+    fprintf(stderr, "  -l <list>   Comma-separated list of message lengths (e.g., \"16,64,1024\")\n");
+    fprintf(stderr, "  -a <list>   Comma-separated list of AD lengths (e.g., \"0,32\")\n");
+    fprintf(stderr, "  -i <num>    Iterations for small messages (default: %d)\n", DEFAULT_ITERATIONS_SMALL);
+    fprintf(stderr, "  -I <num>    Iterations for large messages (default: %d)\n", DEFAULT_ITERATIONS_LARGE);
+    fprintf(stderr, "  -h          Show this help message\n");
+}
 
-    const size_t msg_lens[] = {16, 64, 256, 1024, 10 * 1024};
-    const size_t ad_lens[] = {0, 32};
+int main(int argc, char **argv) {
+    size_t *msg_lens = NULL;
+    size_t msg_count = 0;
+    size_t *ad_lens = NULL;
+    size_t ad_count = 0;
+    uint64_t iter_small = DEFAULT_ITERATIONS_SMALL;
+    uint64_t iter_large = DEFAULT_ITERATIONS_LARGE;
 
-    const uint64_t iterations_small = 20000;
-    const uint64_t iterations_large = 2000;
+    for (int i = 1; i < argc; i++) {
+        const char *arg = argv[i];
+
+        if (streq(arg, "-l")) {
+            const char *v = need_value(&i, argc, argv, "-l");
+            msg_lens = malloc(sizeof(size_t) * 100);
+            msg_count = parse_size_list(v, msg_lens, 100);
+            if (msg_count == 0) { fprintf(stderr, "No valid message lengths provided.\n"); return 1; }
+
+        } else if (streq(arg, "-a")) {
+            const char *v = need_value(&i, argc, argv, "-a");
+            ad_lens = malloc(sizeof(size_t) * 100);
+            ad_count = parse_size_list(v, ad_lens, 100);
+            if (ad_count == 0) { fprintf(stderr, "No valid AD lengths provided.\n"); return 1; }
+
+        } else if (streq(arg, "-i")) {
+            const char *v = need_value(&i, argc, argv, "-i");
+            if (!parse_u64(v, &iter_small)) { fprintf(stderr, "Invalid -i value.\n"); return 1; }
+
+        } else if (streq(arg, "-I")) {
+            const char *v = need_value(&i, argc, argv, "-I");
+            if (!parse_u64(v, &iter_large)) { fprintf(stderr, "Invalid -I value.\n"); return 1; }
+
+        } else if (streq(arg, "-h") || streq(arg, "--help")) {
+            print_help(argv[0]);
+            return 0;
+
+        } else {
+            fprintf(stderr, "Unknown option: %s\n", arg);
+            print_help(argv[0]);
+            return 1;
+        }
+    }
+
+    if (!msg_lens) {
+        msg_count = 4;
+        msg_lens = malloc(sizeof(size_t) * msg_count);
+        size_t d[] = {16, 64, 256, 1024};
+        memcpy(msg_lens, d, sizeof(d));
+    }
+    if (!ad_lens) {
+        ad_count = 2;
+        ad_lens = malloc(sizeof(size_t) * ad_count);
+        size_t d[] = {0, 32};
+        memcpy(ad_lens, d, sizeof(d));
+    }
 
     print_csv_header();
 
-    for (size_t i = 0; i < sizeof(msg_lens) / sizeof(msg_lens[0]); i++) {
-        for (size_t j = 0; j < sizeof(ad_lens) / sizeof(ad_lens[0]); j++) {
+    for (size_t i = 0; i < msg_count; i++) {
+        for (size_t j = 0; j < ad_count; j++) {
             size_t mlen = msg_lens[i];
             size_t adlen = ad_lens[j];
-            uint64_t iterations = (mlen <= 256) ? iterations_small : iterations_large;
-            char ts_iso[32];
-            char run_id[192];
-            make_timestamp_iso_utc(ts_iso, sizeof(ts_iso));
-            make_run_id(run_id, sizeof(run_id), algorithm, implementation, board, arch);
-            
+            uint64_t iters = (mlen <= 256) ? iter_small : iter_large;
+
             csv_row_t row = {0};
-            row.timestamp_iso = ts_iso;
-            row.run_id = run_id;
-            row.algorithm = algorithm;
-            row.implementation = implementation;
-            row.version = version;
-            row.board = board;
-            row.arch = arch;
-            row.compiler = compiler;
-            row.compiler_version = compiler_version;
-            row.cflags = cflags;
-            row.freq_hz = 0; // Example frequency
-            
-            row.enc_cycles_total = 0;
-            row.dec_cycles_total = 0;
-            row.enc_cycles_per_byte = 0.0;
-            row.dec_cycles_per_byte = 0.0;
+            char ts[32];
+            char rid[256];
+            make_timestamp_iso_utc(ts, sizeof(ts));
+            make_run_id(rid, sizeof(rid), XSTR(ALGO_NAME), XSTR(IMPL_NAME), BOARD_NAME, TARGET_ARCH);
 
-            row.flash_bytes = 0;
-            row.ram_bytes = 0;
-            row.stack_bytes_peak = 0;
+            row.timestamp_iso = ts;
+            row.run_id = rid;
+            row.algorithm = XSTR(ALGO_NAME);
+            row.implementation = XSTR(IMPL_NAME);
+            row.version = VERSION_STR;
+            row.board = BOARD_NAME;
+            row.cflags = COMPILER_FLAGS;
+            row.arch = TARGET_ARCH;
+            row.compiler = COMPILER_ID;
+            row.compiler_version = COMPILER_VERSION;
 
-            row.energy_uJ_enc_total = 0.0;
-            row.energy_uJ_dec_total = 0.0;
-            row.energy_uJ_per_byte_enc = 0.0;
-            row.energy_uJ_per_byte_dec = 0.0;
-            row.avg_power_mW_enc = 0.0;
-            row.avg_power_mW_dec = 0.0;
-
-            // Basic Correctness and tamper test
-            int ok_tamper = correctness_and_tamper(mlen, adlen);
-            if (!ok_tamper) {
-                row.msg_len = mlen;
-                row.ad_len = adlen;
-                row.key_len = CRYPTO_KEYBYTES;
-                row.nonce_len = CRYPTO_NPUBBYTES;
-                row.tag_len = CRYPTO_ABYTES;
-                row.iterations = 0;
+            if (!correctness_and_tamper(mlen, adlen)) {
                 row.ok = 0;
-                row.notes = "Tamper detection failed";
+                row.notes = "Sanity Check Failed";
                 print_csv_row(&row);
                 continue;
             }
 
-            bench_one(mlen, adlen, iterations, &row);
+            // Run Benchmark
+            bench_one(mlen, adlen, iters, &row);
             print_csv_row(&row);
         }
     }
 
+    free(msg_lens);
+    free(ad_lens);
     return 0;
 }

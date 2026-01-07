@@ -14,6 +14,12 @@
 # EXTERNAL cache entries
 ########################
 
+//No help, variable specified on the command line.
+ALGO_SELECTED:UNINITIALIZED=ascon
+
+//No help, variable specified on the command line.
+BOARD:UNINITIALIZED=pc
+
 //Path to a program.
 CMAKE_AR:FILEPATH=C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/VC/Tools/MSVC/14.29.30133/bin/Hostx64/x64/lib.exe
 
@@ -26,7 +32,7 @@ CMAKE_BUILD_TYPE:STRING=Release
 CMAKE_CONFIGURATION_TYPES:STRING=Debug;Release;MinSizeRel;RelWithDebInfo
 
 //Flags used by the C compiler during all build types.
-CMAKE_C_FLAGS:STRING=/DWIN32 /D_WINDOWS
+CMAKE_C_FLAGS:STRING=-O2
 
 //Flags used by the C compiler during DEBUG builds.
 CMAKE_C_FLAGS_DEBUG:STRING=/Ob0 /Od
@@ -175,6 +181,12 @@ CMAKE_STATIC_LINKER_FLAGS_RELWITHDEBINFO:STRING=
 // during the make.  This is useful for debugging only. With Visual
 // Studio IDE projects all commands are done without /nologo.
 CMAKE_VERBOSE_MAKEFILE:BOOL=FALSE
+
+//No help, variable specified on the command line.
+IMPL_SELECTED:UNINITIALIZED=aead128_ref
+
+//No help, variable specified on the command line.
+USER_VERSION:UNINITIALIZED=v0-test
 
 //Value Computed by CMake
 master_project_ascon_BINARY_DIR:STATIC=C:/Users/Ethan/Documents/Virginia Tech/Master-Project/master-project-ascon/build

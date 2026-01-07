@@ -74,6 +74,9 @@ void make_run_id(char *out, size_t out_size,
 void print_csv_header(void);
 void print_csv_row(const csv_row_t *row);
 
+size_t parse_size_list(const char *csv, size_t *out, size_t out_cap);
+int parse_u64(const char *str, uint64_t *out);
+
 #ifdef __cplusplus
 }
 #endif

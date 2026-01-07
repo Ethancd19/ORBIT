@@ -4,6 +4,9 @@
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
+#include <ctype.h>
+#include <errno.h>
+#include <stdlib.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -88,6 +91,46 @@ void make_run_id(char *out, size_t out_size, const char *algorithm, const char *
     sanitize_token(r);
 
     snprintf(out, out_size, "%s_%s_%s_%s_%s", compact, a, i, b, r);
+}
+
+int parse_u64(const char *str, uint64_t *out) {
+    if (!str || !*str || !out) {
+        return -1;
+    }
+    char *endptr = NULL;
+    unsigned long long val = strtoull(str, &endptr, 10);
+    if (endptr == str || *endptr != '\0' || errno == ERANGE) {
+        return -1;
+    }
+    *out = (uint64_t)val;
+    return 1;
+}
+
+size_t parse_size_list(const char *csv, size_t *out, size_t out_cap) {
+    if (!csv || !out || out_cap == 0) {
+        return 0;
+    }
+
+    size_t count = 0;
+    const char *ptr = csv;
+    while (*ptr && count < out_cap) {
+        while (*ptr == ' ' || *ptr == '\t' || *ptr == ',') ptr++;
+        if (!*ptr) {
+            break;
+        }
+        char *endptr = NULL;
+        unsigned long long val = strtoull(ptr, &endptr, 10);
+        if (endptr == ptr) {
+            break;
+        }
+        out[count++] = (size_t)val;
+        ptr = endptr;
+        while (*ptr == ' ' || *ptr == '\t') ptr++;
+        if (*ptr == ',') {
+            ptr++;
+        }
+    }
+    return count;
 }
 
 static uint32_t xorshift32(uint32_t *state) {
