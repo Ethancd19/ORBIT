@@ -1,0 +1,10 @@
+^C:\USERS\ETHAN\DOCUMENTS\VIRGINIA TECH\MASTER-PROJECT\MASTER-PROJECT-ASCON\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" "-SC:/Users/Ethan/Documents/Virginia Tech/Master-Project/master-project-ascon" "-BC:/Users/Ethan/Documents/Virginia Tech/Master-Project/master-project-ascon/build" --check-stamp-file "C:/Users/Ethan/Documents/Virginia Tech/Master-Project/master-project-ascon/build/CMakeFiles/generate.stamp"
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
