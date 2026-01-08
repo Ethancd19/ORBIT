@@ -113,19 +113,25 @@ def main():
 
     version = input("\nEnter version identifier (e.g., v1.0): ").strip() or "default"
 
-    msg_lens = prompt_default('Message lengths for -l (comma list, e.g. "16,64,1024")', "16,64,256,1024")
-    ad_lens  = prompt_default('AD lengths for -a (comma list, e.g. "0,32")', "0,32")
+    msg_lens = prompt_default('Message lengths for -l (comma list, e.g. "16,64,1024")', "16,32,64,128,256,512,1024,4096,16384")
+    ad_lens  = prompt_default('AD lengths for -a (comma list, e.g. "0,32")', "0,32,128")
     iter_s   = prompt_default("Iterations for small messages (-i)", "20000")
     iter_L   = prompt_default("Iterations for large messages (-I)", "2000")
+    try:
+        repeats = int(prompt_default("Number of times to repeat each measurement", "1"))
+    except ValueError:
+        print("Invalid input for repeats. Using default value 1.")
+        repeats = 1
 
     out_path = prompt_default("Output CSV file path", os.path.join("results", f"{target['algo']}_{target['impl']}.csv"))
     append = yes_no("Append to output file (will drop the repeated header line)?", default=False)
+    clean_build = yes_no("Clean build directory before building?", default=True)
 
     out_dir = os.path.dirname(out_path)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
 
-    if os.path.exists(BUILD_DIR):
+    if clean_build and os.path.exists(BUILD_DIR):
         print(f"\n>>> Cleaning existing build directory '{BUILD_DIR}'...")
         try:
             shutil.rmtree(BUILD_DIR)
@@ -161,23 +167,28 @@ def main():
     cmd = [exe_path, "-l", msg_lens, "-a", ad_lens, "-i", str(iter_s), "-I", str(iter_L)]
     print("[EXEC]", " ".join(f"\"{c}\"" if " " in c else c for c in cmd))
 
-    proc = subprocess.run(cmd, capture_output=True, text=True)
-    if proc.returncode != 0:
-        print(proc.stdout)
-        print(proc.stderr)
-        print("Error: Benchmark execution failed.")
-        sys.exit(proc.returncode)
-    
-    csv_text = proc.stdout
+    for r in range(1, repeats + 1):
+        print(f">>> Run {r}/{repeats}...")
 
-    if append and os.path.exists(out_path):
-        csv_lines = csv_text.splitlines(True)
-        if csv_lines:
-            csv_text = "".join(csv_lines[1:])
-    
-    mode = "a" if append else "w"
-    with open(out_path, mode, newline="") as f:
-        f.write(csv_text)
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        if proc.returncode != 0:
+            print(proc.stdout)
+            print(proc.stderr)
+            print("Error: Benchmark execution failed.")
+            sys.exit(proc.returncode)
+        
+        csv_text = proc.stdout
+
+        append_run = append or (r > 1)
+
+        if append_run and os.path.exists(out_path):
+            csv_lines = csv_text.splitlines(True)
+            if csv_lines:
+                csv_text = "".join(csv_lines[1:])
+        
+        mode = "a" if append_run else "w"
+        with open(out_path, mode, newline="") as f:
+            f.write(csv_text)
     
     print(f"\n>>> Results written to {out_path}")
 
