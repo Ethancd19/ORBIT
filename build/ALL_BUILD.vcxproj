@@ -178,9 +178,9 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </ProjectReference>
-    <ProjectReference Include="C:\Users\Ethan\Documents\Virginia Tech\Master-Project\master-project-ascon\build\bench_ascon_aead128_ref.vcxproj">
-      <Project>{DC48A860-E214-3BEE-80FE-EA99ED1300A2}</Project>
-      <Name>bench_ascon_aead128_ref</Name>
+    <ProjectReference Include="C:\Users\Ethan\Documents\Virginia Tech\Master-Project\master-project-ascon\build\bench_gift_cofb_opt32.vcxproj">
+      <Project>{29E1A9CD-7DFA-32E6-897D-F57BE2FAFDA4}</Project>
+      <Name>bench_gift_cofb_opt32</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

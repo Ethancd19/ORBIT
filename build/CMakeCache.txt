@@ -15,7 +15,7 @@
 ########################
 
 //No help, variable specified on the command line.
-ALGO_SELECTED:UNINITIALIZED=ascon_aead128
+ALGO_SELECTED:UNINITIALIZED=gift_cofb
 
 //No help, variable specified on the command line.
 BOARD:UNINITIALIZED=pc
@@ -183,10 +183,10 @@ CMAKE_STATIC_LINKER_FLAGS_RELWITHDEBINFO:STRING=
 CMAKE_VERBOSE_MAKEFILE:BOOL=FALSE
 
 //No help, variable specified on the command line.
-IMPL_SELECTED:UNINITIALIZED=ref
+IMPL_SELECTED:UNINITIALIZED=opt32
 
 //No help, variable specified on the command line.
-USER_VERSION:UNINITIALIZED=v5-test
+USER_VERSION:UNINITIALIZED=v1-test-gift
 
 //Value Computed by CMake
 master_project_ascon_BINARY_DIR:STATIC=C:/Users/Ethan/Documents/Virginia Tech/Master-Project/master-project-ascon/build

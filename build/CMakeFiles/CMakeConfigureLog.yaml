@@ -104,7 +104,7 @@ events:
       Microsoft (R) Build Engine version 16.11.2+f32259642 for .NET Framework
       Copyright (C) Microsoft Corporation. All rights reserved.
       
-      Build started 1/8/2026 12:16:36 AM.
+      Build started 1/8/2026 3:22:52 AM.
       Project "C:\\Users\\Ethan\\Documents\\Virginia Tech\\Master-Project\\master-project-ascon\\build\\CMakeFiles\\4.2.1\\CompilerIdC\\CompilerIdC.vcxproj" on node 1 (default targets).
       PrepareForBuild:
         Creating directory "Debug\\".
@@ -130,7 +130,7 @@ events:
           0 Warning(s)
           0 Error(s)
       
-      Time Elapsed 00:00:00.60
+      Time Elapsed 00:00:00.63
       
       
       Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "CompilerIdC.exe"
@@ -1244,8 +1244,8 @@ events:
     checks:
       - "Detecting C compiler ABI info"
     directories:
-      source: "C:/Users/Ethan/Documents/Virginia Tech/Master-Project/master-project-ascon/build/CMakeFiles/CMakeScratch/TryCompile-5lc3yx"
-      binary: "C:/Users/Ethan/Documents/Virginia Tech/Master-Project/master-project-ascon/build/CMakeFiles/CMakeScratch/TryCompile-5lc3yx"
+      source: "C:/Users/Ethan/Documents/Virginia Tech/Master-Project/master-project-ascon/build/CMakeFiles/CMakeScratch/TryCompile-2e17ul"
+      binary: "C:/Users/Ethan/Documents/Virginia Tech/Master-Project/master-project-ascon/build/CMakeFiles/CMakeScratch/TryCompile-2e17ul"
     cmakeVariables:
       CMAKE_C_FLAGS: "-O2"
       CMAKE_C_FLAGS_DEBUG: "/Ob0 /Od"
@@ -1254,38 +1254,38 @@ events:
       variable: "CMAKE_C_ABI_COMPILED"
       cached: true
       stdout: |
-        Change Dir: 'C:/Users/Ethan/Documents/Virginia Tech/Master-Project/master-project-ascon/build/CMakeFiles/CMakeScratch/TryCompile-5lc3yx'
+        Change Dir: 'C:/Users/Ethan/Documents/Virginia Tech/Master-Project/master-project-ascon/build/CMakeFiles/CMakeScratch/TryCompile-2e17ul'
         
-        Run Build Command(s): "C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/MSBuild/Current/Bin/MSBuild.exe" cmTC_f4df0.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=16.0 /v:n
+        Run Build Command(s): "C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/MSBuild/Current/Bin/MSBuild.exe" cmTC_e8a2f.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=16.0 /v:n
         Microsoft (R) Build Engine version 16.11.2+f32259642 for .NET Framework
         Copyright (C) Microsoft Corporation. All rights reserved.
         
-        Build started 1/8/2026 12:16:37 AM.
-        Project "C:\\Users\\Ethan\\Documents\\Virginia Tech\\Master-Project\\master-project-ascon\\build\\CMakeFiles\\CMakeScratch\\TryCompile-5lc3yx\\cmTC_f4df0.vcxproj" on node 1 (default targets).
+        Build started 1/8/2026 3:22:53 AM.
+        Project "C:\\Users\\Ethan\\Documents\\Virginia Tech\\Master-Project\\master-project-ascon\\build\\CMakeFiles\\CMakeScratch\\TryCompile-2e17ul\\cmTC_e8a2f.vcxproj" on node 1 (default targets).
         PrepareForBuild:
-          Creating directory "C:\\Users\\Ethan\\Documents\\Virginia Tech\\Master-Project\\master-project-ascon\\build\\CMakeFiles\\CMakeScratch\\TryCompile-5lc3yx\\Debug\\".
-          Creating directory "cmTC_f4df0.dir\\Debug\\cmTC_f4df0.tlog\\".
+          Creating directory "C:\\Users\\Ethan\\Documents\\Virginia Tech\\Master-Project\\master-project-ascon\\build\\CMakeFiles\\CMakeScratch\\TryCompile-2e17ul\\Debug\\".
+          Creating directory "cmTC_e8a2f.dir\\Debug\\cmTC_e8a2f.tlog\\".
         InitializeBuildStatus:
-          Creating "cmTC_f4df0.dir\\Debug\\cmTC_f4df0.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
+          Creating "cmTC_e8a2f.dir\\Debug\\cmTC_e8a2f.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
         ClCompile:
-          C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Tools\\MSVC\\14.29.30133\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /Fo"cmTC_f4df0.dir\\Debug\\\\" /Fd"cmTC_f4df0.dir\\Debug\\vc142.pdb" /external:W1 /TC /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.2\\Modules\\CMakeCCompilerABI.c"
+          C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Tools\\MSVC\\14.29.30133\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /Fo"cmTC_e8a2f.dir\\Debug\\\\" /Fd"cmTC_e8a2f.dir\\Debug\\vc142.pdb" /external:W1 /TC /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.2\\Modules\\CMakeCCompilerABI.c"
           Microsoft (R) C/C++ Optimizing Compiler Version 19.29.30140 for x64
           Copyright (C) Microsoft Corporation.  All rights reserved.
           CMakeCCompilerABI.c
-          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /Fo"cmTC_f4df0.dir\\Debug\\\\" /Fd"cmTC_f4df0.dir\\Debug\\vc142.pdb" /external:W1 /TC /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.2\\Modules\\CMakeCCompilerABI.c"
+          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /Fo"cmTC_e8a2f.dir\\Debug\\\\" /Fd"cmTC_e8a2f.dir\\Debug\\vc142.pdb" /external:W1 /TC /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.2\\Modules\\CMakeCCompilerABI.c"
         Link:
-          C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Tools\\MSVC\\14.29.30133\\bin\\HostX64\\x64\\link.exe /OUT:"C:\\Users\\Ethan\\Documents\\Virginia Tech\\Master-Project\\master-project-ascon\\build\\CMakeFiles\\CMakeScratch\\TryCompile-5lc3yx\\Debug\\cmTC_f4df0.exe" /INCREMENTAL /ILK:"cmTC_f4df0.dir\\Debug\\cmTC_f4df0.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/Ethan/Documents/Virginia Tech/Master-Project/master-project-ascon/build/CMakeFiles/CMakeScratch/TryCompile-5lc3yx/Debug/cmTC_f4df0.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/Ethan/Documents/Virginia Tech/Master-Project/master-project-ascon/build/CMakeFiles/CMakeScratch/TryCompile-5lc3yx/Debug/cmTC_f4df0.lib" /MACHINE:X64 cmTC_f4df0.dir\\Debug\\CMakeCCompilerABI.obj
-          cmTC_f4df0.vcxproj -> C:\\Users\\Ethan\\Documents\\Virginia Tech\\Master-Project\\master-project-ascon\\build\\CMakeFiles\\CMakeScratch\\TryCompile-5lc3yx\\Debug\\cmTC_f4df0.exe
+          C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Tools\\MSVC\\14.29.30133\\bin\\HostX64\\x64\\link.exe /OUT:"C:\\Users\\Ethan\\Documents\\Virginia Tech\\Master-Project\\master-project-ascon\\build\\CMakeFiles\\CMakeScratch\\TryCompile-2e17ul\\Debug\\cmTC_e8a2f.exe" /INCREMENTAL /ILK:"cmTC_e8a2f.dir\\Debug\\cmTC_e8a2f.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/Ethan/Documents/Virginia Tech/Master-Project/master-project-ascon/build/CMakeFiles/CMakeScratch/TryCompile-2e17ul/Debug/cmTC_e8a2f.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/Ethan/Documents/Virginia Tech/Master-Project/master-project-ascon/build/CMakeFiles/CMakeScratch/TryCompile-2e17ul/Debug/cmTC_e8a2f.lib" /MACHINE:X64 cmTC_e8a2f.dir\\Debug\\CMakeCCompilerABI.obj
+          cmTC_e8a2f.vcxproj -> C:\\Users\\Ethan\\Documents\\Virginia Tech\\Master-Project\\master-project-ascon\\build\\CMakeFiles\\CMakeScratch\\TryCompile-2e17ul\\Debug\\cmTC_e8a2f.exe
         FinalizeBuildStatus:
-          Deleting file "cmTC_f4df0.dir\\Debug\\cmTC_f4df0.tlog\\unsuccessfulbuild".
-          Touching "cmTC_f4df0.dir\\Debug\\cmTC_f4df0.tlog\\cmTC_f4df0.lastbuildstate".
-        Done Building Project "C:\\Users\\Ethan\\Documents\\Virginia Tech\\Master-Project\\master-project-ascon\\build\\CMakeFiles\\CMakeScratch\\TryCompile-5lc3yx\\cmTC_f4df0.vcxproj" (default targets).
+          Deleting file "cmTC_e8a2f.dir\\Debug\\cmTC_e8a2f.tlog\\unsuccessfulbuild".
+          Touching "cmTC_e8a2f.dir\\Debug\\cmTC_e8a2f.tlog\\cmTC_e8a2f.lastbuildstate".
+        Done Building Project "C:\\Users\\Ethan\\Documents\\Virginia Tech\\Master-Project\\master-project-ascon\\build\\CMakeFiles\\CMakeScratch\\TryCompile-2e17ul\\cmTC_e8a2f.vcxproj" (default targets).
         
         Build succeeded.
             0 Warning(s)
             0 Error(s)
         
-        Time Elapsed 00:00:00.43
+        Time Elapsed 00:00:00.47
         
       exitCode: 0
   -
