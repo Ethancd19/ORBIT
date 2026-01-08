@@ -110,12 +110,12 @@
       <SupportJustMyCode></SupportJustMyCode>
       <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
       <UseFullPaths>false</UseFullPaths>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);ALGO_NAME=ascon;IMPL_NAME=aead128_ref;BOARD_NAME="pc";VERSION_STR="v0-test";TARGET_ARCH="AMD64";COMPILER_ID="MSVC";COMPILER_VERSION="19.29.30140.0";COMPILER_FLAGS="-O2";_MBCS;CMAKE_INTDIR="Debug"</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);ALGO_NAME=ascon_aead128;IMPL_NAME=ref;BOARD_NAME="pc";VERSION_STR="v4-test";TARGET_ARCH="AMD64";COMPILER_ID="MSVC";COMPILER_VERSION="19.29.30140.0";COMPILER_FLAGS="-O2";_MBCS;CMAKE_INTDIR="Debug"</PreprocessorDefinitions>
       <ObjectFileName>$(IntDir)</ObjectFileName>
       <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_DEBUG;ALGO_NAME=ascon;IMPL_NAME=aead128_ref;BOARD_NAME=\"pc\";VERSION_STR=\"v0-test\";TARGET_ARCH=\"AMD64\";COMPILER_ID=\"MSVC\";COMPILER_VERSION=\"19.29.30140.0\";COMPILER_FLAGS=\"-O2\";_MBCS;CMAKE_INTDIR=\"Debug\"</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_DEBUG;ALGO_NAME=ascon_aead128;IMPL_NAME=ref;BOARD_NAME=\"pc\";VERSION_STR=\"v4-test\";TARGET_ARCH=\"AMD64\";COMPILER_ID=\"MSVC\";COMPILER_VERSION=\"19.29.30140.0\";COMPILER_FLAGS=\"-O2\";_MBCS;CMAKE_INTDIR=\"Debug\"</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>C:\Users\Ethan\Documents\Virginia Tech\Master-Project\master-project-ascon\include;C:\Users\Ethan\Documents\Virginia Tech\Master-Project\master-project-ascon\bench;C:\Users\Ethan\Documents\Virginia Tech\Master-Project\master-project-ascon\impl\ascon_aead128_ref;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Midl>
@@ -164,14 +164,14 @@
       <SupportJustMyCode></SupportJustMyCode>
       <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
       <UseFullPaths>false</UseFullPaths>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDEBUG;ALGO_NAME=ascon;IMPL_NAME=aead128_ref;BOARD_NAME="pc";VERSION_STR="v0-test";TARGET_ARCH="AMD64";COMPILER_ID="MSVC";COMPILER_VERSION="19.29.30140.0";COMPILER_FLAGS="-O2";_MBCS;CMAKE_INTDIR="Release"</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDEBUG;ALGO_NAME=ascon_aead128;IMPL_NAME=ref;BOARD_NAME="pc";VERSION_STR="v4-test";TARGET_ARCH="AMD64";COMPILER_ID="MSVC";COMPILER_VERSION="19.29.30140.0";COMPILER_FLAGS="-O2";_MBCS;CMAKE_INTDIR="Release"</PreprocessorDefinitions>
       <ObjectFileName>$(IntDir)</ObjectFileName>
       <DebugInformationFormat>
       </DebugInformationFormat>
       <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;NDEBUG;ALGO_NAME=ascon;IMPL_NAME=aead128_ref;BOARD_NAME=\"pc\";VERSION_STR=\"v0-test\";TARGET_ARCH=\"AMD64\";COMPILER_ID=\"MSVC\";COMPILER_VERSION=\"19.29.30140.0\";COMPILER_FLAGS=\"-O2\";_MBCS;CMAKE_INTDIR=\"Release\"</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;NDEBUG;ALGO_NAME=ascon_aead128;IMPL_NAME=ref;BOARD_NAME=\"pc\";VERSION_STR=\"v4-test\";TARGET_ARCH=\"AMD64\";COMPILER_ID=\"MSVC\";COMPILER_VERSION=\"19.29.30140.0\";COMPILER_FLAGS=\"-O2\";_MBCS;CMAKE_INTDIR=\"Release\"</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>C:\Users\Ethan\Documents\Virginia Tech\Master-Project\master-project-ascon\include;C:\Users\Ethan\Documents\Virginia Tech\Master-Project\master-project-ascon\bench;C:\Users\Ethan\Documents\Virginia Tech\Master-Project\master-project-ascon\impl\ascon_aead128_ref;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Midl>
@@ -220,14 +220,14 @@
       <SupportJustMyCode></SupportJustMyCode>
       <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
       <UseFullPaths>false</UseFullPaths>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDEBUG;ALGO_NAME=ascon;IMPL_NAME=aead128_ref;BOARD_NAME="pc";VERSION_STR="v0-test";TARGET_ARCH="AMD64";COMPILER_ID="MSVC";COMPILER_VERSION="19.29.30140.0";COMPILER_FLAGS="-O2";_MBCS;CMAKE_INTDIR="MinSizeRel"</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDEBUG;ALGO_NAME=ascon_aead128;IMPL_NAME=ref;BOARD_NAME="pc";VERSION_STR="v4-test";TARGET_ARCH="AMD64";COMPILER_ID="MSVC";COMPILER_VERSION="19.29.30140.0";COMPILER_FLAGS="-O2";_MBCS;CMAKE_INTDIR="MinSizeRel"</PreprocessorDefinitions>
       <ObjectFileName>$(IntDir)</ObjectFileName>
       <DebugInformationFormat>
       </DebugInformationFormat>
       <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;NDEBUG;ALGO_NAME=ascon;IMPL_NAME=aead128_ref;BOARD_NAME=\"pc\";VERSION_STR=\"v0-test\";TARGET_ARCH=\"AMD64\";COMPILER_ID=\"MSVC\";COMPILER_VERSION=\"19.29.30140.0\";COMPILER_FLAGS=\"-O2\";_MBCS;CMAKE_INTDIR=\"MinSizeRel\"</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;NDEBUG;ALGO_NAME=ascon_aead128;IMPL_NAME=ref;BOARD_NAME=\"pc\";VERSION_STR=\"v4-test\";TARGET_ARCH=\"AMD64\";COMPILER_ID=\"MSVC\";COMPILER_VERSION=\"19.29.30140.0\";COMPILER_FLAGS=\"-O2\";_MBCS;CMAKE_INTDIR=\"MinSizeRel\"</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>C:\Users\Ethan\Documents\Virginia Tech\Master-Project\master-project-ascon\include;C:\Users\Ethan\Documents\Virginia Tech\Master-Project\master-project-ascon\bench;C:\Users\Ethan\Documents\Virginia Tech\Master-Project\master-project-ascon\impl\ascon_aead128_ref;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Midl>
@@ -277,12 +277,12 @@
       <SupportJustMyCode></SupportJustMyCode>
       <TreatWChar_tAsBuiltInType></TreatWChar_tAsBuiltInType>
       <UseFullPaths>false</UseFullPaths>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDEBUG;ALGO_NAME=ascon;IMPL_NAME=aead128_ref;BOARD_NAME="pc";VERSION_STR="v0-test";TARGET_ARCH="AMD64";COMPILER_ID="MSVC";COMPILER_VERSION="19.29.30140.0";COMPILER_FLAGS="-O2";_MBCS;CMAKE_INTDIR="RelWithDebInfo"</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NDEBUG;ALGO_NAME=ascon_aead128;IMPL_NAME=ref;BOARD_NAME="pc";VERSION_STR="v4-test";TARGET_ARCH="AMD64";COMPILER_ID="MSVC";COMPILER_VERSION="19.29.30140.0";COMPILER_FLAGS="-O2";_MBCS;CMAKE_INTDIR="RelWithDebInfo"</PreprocessorDefinitions>
       <ObjectFileName>$(IntDir)</ObjectFileName>
       <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;NDEBUG;ALGO_NAME=ascon;IMPL_NAME=aead128_ref;BOARD_NAME=\"pc\";VERSION_STR=\"v0-test\";TARGET_ARCH=\"AMD64\";COMPILER_ID=\"MSVC\";COMPILER_VERSION=\"19.29.30140.0\";COMPILER_FLAGS=\"-O2\";_MBCS;CMAKE_INTDIR=\"RelWithDebInfo\"</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;NDEBUG;ALGO_NAME=ascon_aead128;IMPL_NAME=ref;BOARD_NAME=\"pc\";VERSION_STR=\"v4-test\";TARGET_ARCH=\"AMD64\";COMPILER_ID=\"MSVC\";COMPILER_VERSION=\"19.29.30140.0\";COMPILER_FLAGS=\"-O2\";_MBCS;CMAKE_INTDIR=\"RelWithDebInfo\"</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>C:\Users\Ethan\Documents\Virginia Tech\Master-Project\master-project-ascon\include;C:\Users\Ethan\Documents\Virginia Tech\Master-Project\master-project-ascon\bench;C:\Users\Ethan\Documents\Virginia Tech\Master-Project\master-project-ascon\impl\ascon_aead128_ref;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Midl>

@@ -38,6 +38,8 @@ typedef struct {
     double dec_cycles_per_byte;
     double enc_time_us_total;
     double dec_time_us_total;
+    double enc_time_us_per_op;
+    double dec_time_us_per_op;
 
     /* Memory usage */
     uint64_t flash_bytes;

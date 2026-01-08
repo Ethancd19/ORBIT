@@ -14,9 +14,9 @@ BOARDS = {
 }
 
 ALGORITHMS = {
-    "1": {"name": "ASCON-128", "cmake_algo": "ascon128", "cmake_impl": "ref"},
-    "2": {"name": "AES-GCM", "cmake_algo": "aes-gcm", "cmake_impl": "ref"},
-    "3": {"name": "ASCON-80PQ", "cmake_algo": "ascon80pq", "cmake_impl": "ref"},
+    "1": {"name": "ASCON AEAD-128", "cmake_algo": "ascon_aead128", "cmake_impl": "ref"},
+    "2": {"name": "AES-GCM", "cmake_algo": "aes_gcm", "cmake_impl": "ref"},
+    "3": {"name": "ASCON-80PQ", "cmake_algo": "ascon_aead80pq", "cmake_impl": "ref"},
 }
 
 OPTIMIZATIONS = {
@@ -73,7 +73,7 @@ def list_impl_targets():
             continue
         if "_" not in name:
             continue
-        algo, impl = name.split("_", 1)
+        algo, impl = name.rsplit("_", 1)
         targets.append({"folder": name, "algo": algo, "impl": impl, "name": f"{algo} ({impl})"})
     return targets
 
@@ -111,7 +111,7 @@ def main():
     board = ask(BOARDS, "Select Target Board")
     optimization = ask(OPTIMIZATIONS, "Select Optimization Level")
 
-    version = input("\nEnter version identifier (e.g., v1.0): ").strip()
+    version = input("\nEnter version identifier (e.g., v1.0): ").strip() or "default"
 
     msg_lens = prompt_default('Message lengths for -l (comma list, e.g. "16,64,1024")', "16,64,256,1024")
     ad_lens  = prompt_default('AD lengths for -a (comma list, e.g. "0,32")', "0,32")
@@ -171,7 +171,7 @@ def main():
     csv_text = proc.stdout
 
     if append and os.path.exists(out_path):
-        csv_lines = csv_text.splitlines()
+        csv_lines = csv_text.splitlines(True)
         if csv_lines:
             csv_text = "".join(csv_lines[1:])
     

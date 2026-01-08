@@ -176,7 +176,9 @@ static void bench_one(size_t mlen, size_t adlen, uint64_t iterations, csv_row_t 
     row->enc_time_us_total = (double)(end_enc - start_enc) / 1000.0;
     row->dec_time_us_total = (double)(end_dec - start_dec) / 1000.0;
     row->iterations = iterations;
-
+    row->enc_time_us_per_op = (iterations > 0) ? row->enc_time_us_total / (double)iterations : 0.0;
+    row->dec_time_us_per_op = (iterations > 0) ? row->dec_time_us_total / (double)iterations : 0.0;
+    
     row->msg_len = mlen;
     row->ad_len = adlen;
     row->key_len = CRYPTO_KEYBYTES;

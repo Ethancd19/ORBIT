@@ -168,7 +168,8 @@ void print_csv_header(void) {
     printf(
         "timestamp_iso,run_id,algorithm,implementation,version,board,arch,compiler,compiler_version,cflags,freq_hz,"
         "msg_len,ad_len,key_len,nonce_len,tag_len,iterations,"
-        "enc_cycles_total,dec_cycles_total,enc_cycles_per_byte,dec_cycles_per_byte,enc_time_us_total,dec_time_us_total,"
+        "enc_cycles_total,dec_cycles_total,enc_cycles_per_byte,dec_cycles_per_byte,"
+        "enc_time_us_total,dec_time_us_total,enc_time_us_per_op,dec_time_us_per_op,"
         "flash_bytes,ram_bytes,stack_bytes_peak,"
         "energy_uJ_enc_total,energy_uJ_dec_total,energy_uJ_per_byte_enc,energy_uJ_per_byte_dec,avg_power_mW_enc,avg_power_mW_dec,"
         "ok,notes\n"
@@ -187,7 +188,7 @@ void print_csv_row(const csv_row_t *row) {
         /* inputs */
         "%zu,%zu,%zu,%zu,%zu,%" PRIu64 ","
         /* timing */
-        "%" PRIu64 ",%" PRIu64 ",%.6f,%.6f,%.6f,%.6f,"
+        "%" PRIu64 ",%" PRIu64 ",%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,"
         /* memory */
         "%" PRIu64 ",%" PRIu64 ",%" PRIu64 ","
         /* energy */
@@ -223,6 +224,8 @@ void print_csv_row(const csv_row_t *row) {
         row->dec_cycles_per_byte,
         row->enc_time_us_total,
         row->dec_time_us_total,
+        row->enc_time_us_per_op,
+        row->dec_time_us_per_op,
 
         /* Memory usage */
         (uint64_t)row->flash_bytes,
