@@ -1,31 +1,24 @@
 #include "util.h"
 
-#include <inttypes.h>
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
 #include <ctype.h>
 #include <errno.h>
 #include <stdlib.h>
+#include "platform.h"
 
-#ifdef _WIN32
-#include <windows.h>
+#ifndef PRIu64
+#define PRIu64 "llu"
 #endif
 
 uint64_t now_ns(void) {
-#ifdef _WIN32
-    static LARGE_INTEGER freq, counter;
-    static int initialized = 0;
-    if (!initialized) {
-        QueryPerformanceFrequency(&freq);
-        initialized = 1;
-    }
-    QueryPerformanceCounter(&counter);
-    return (uint64_t)(counter.QuadPart * 1000000000ULL / freq.QuadPart);
-#else
+#if defined(__linux__) || defined(__APPLE__)
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
+#else
+    return (uint64_t)(platform_cycle_count() * 1000ULL / (PLATFORM_FREQ_HZ / 1000000ULL));
 #endif
 }
 
@@ -42,7 +35,6 @@ void make_timestamp_iso_utc(char *out, size_t out_size) {
         }
         return;
     }
-
 #ifdef _WIN32
     FILETIME ft;
     GetSystemTimeAsFileTime(&ft);
@@ -53,7 +45,7 @@ void make_timestamp_iso_utc(char *out, size_t out_size) {
     snprintf(out, out_size, "%04u-%02u-%02uT%02u:%02u:%02uZ",
              st.wYear, st.wMonth, st.wDay,
              st.wHour, st.wMinute, st.wSecond);
-#else
+#elif defined(__linux__) || defined(__APPLE__)
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
     struct tm tm_utc;
@@ -61,6 +53,8 @@ void make_timestamp_iso_utc(char *out, size_t out_size) {
     snprintf(out, out_size, "%04d-%02d-%02dT%02d:%02d:%02dZ",
              tm_utc.tm_year + 1900, tm_utc.tm_mon + 1, tm_utc.tm_mday,
              tm_utc.tm_hour, tm_utc.tm_min, tm_utc.tm_sec);
+#else
+        snprintf(out, out_size, "1970-01-01T00:00:00Z");
 #endif
 }
 
@@ -184,13 +178,13 @@ void print_csv_row(const csv_row_t *row) {
 
     printf(
         /* 10 string fields before freq_hz (cflags quoted) */
-        "%s,%s,%s,%s,%s,%s,%s,%s,%s,\"%s\",%" PRIu64 ","
+        "%s,%s,%s,%s,%s,%s,%s,%s,%s,\"%s\",%llu,"
         /* inputs */
-        "%zu,%zu,%zu,%zu,%zu,%" PRIu64 ","
+        "%zu,%zu,%zu,%zu,%zu,%llu,"
         /* timing */
-        "%" PRIu64 ",%" PRIu64 ",%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,"
+        "%llu,%llu,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,"
         /* memory */
-        "%" PRIu64 ",%" PRIu64 ",%" PRIu64 ","
+        "%llu,%llu,%llu,"
         /* energy */
         "%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,"
         /* correctness */

@@ -1,73 +1,64 @@
-cmake_minimum_required(VERSION 4.2)
+cmake_minimum_required(VERSION 3.13)
 
-project(master_project_ascon C)
+include ($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
 
-# Language standard
+project(ECLIPSE C CXX ASM)
+
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
-# Default build type
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
-endif()
+pico_sdk_init()
 
-if(NOT DEFINED USER_VERSION)
-    set(USER_VERSION "manual-build")
-endif()
 if(NOT DEFINED BOARD)
-    set(BOARD "pc")
+    set(BOARD "pico")
 endif()
 if(NOT DEFINED ALGO_SELECTED)
     set(ALGO_SELECTED "ascon_aead128")
 endif()
-if(NOT DEFINED IMPL_SELECTED)
-    set(IMPL_SELECTED "ref")
-endif()
 
-if(CMAKE_SYSTEM_PROCESSOR)
-    set(TARGET_ARCH ${CMAKE_SYSTEM_PROCESSOR})
-else()
-    set(TARGET_ARCH "unknown")
-endif()
+set(TARGET_NAME "ECLIPSE_${ALGO_SELECTED}_${BOARD}")
+set(ALGO_DIR "${CMAKE_SOURCE_DIR}/algorithms/${ALGO_SELECTED}")
 
-set(TARGET_NAME "bench_${ALGO_SELECTED}_${IMPL_SELECTED}")
-set(IMPL_DIR "${CMAKE_SOURCE_DIR}/impl/${ALGO_SELECTED}_${IMPL_SELECTED}")
-
-if(NOT EXISTS "${IMPL_DIR}")
-    message(FATAL_ERROR
-        "Implementation folder not found: ${IMPL_DIR}\n"
-        "Check -DALGO_SELECTED and -DIMPL_SELECTED match your impl folder name."
+if(NOT EXISTS "${ALGO_DIR}")
+    message(FATAL_ERROR 
+        "Algorithm folder not found: ${ALGO_DIR}\n"
+        "Check -DALGO_SELECTED matches your algorithm folder name in ${CMAKE_SOURCE_DIR}/algorithms/"
     )
 endif()
 
-file(GLOB IMPL_SOURCES CONFIGURE_DEPENDS "${IMPL_DIR}/*.c")
+file(GLOB ALGO_SOURCES CONFIGURE_DEPENDS "${ALGO_DIR}/*.c")
 
-
-# Executable
 add_executable(${TARGET_NAME}
     bench/main.c
     bench/util.c
-    ${IMPL_SOURCES}
+    ${ALGO_SOURCES}
 )
 
-# Include directories
 target_include_directories(${TARGET_NAME} PRIVATE
     include
     bench
-    "${IMPL_DIR}"
+    "${ALGO_DIR}"
+    "platforms/${BOARD}"
 )
 
 target_compile_definitions(${TARGET_NAME} PRIVATE
     ALGO_NAME=${ALGO_SELECTED}
-    IMPL_NAME=${IMPL_SELECTED}
     BOARD_NAME="${BOARD}"
-    VERSION_STR="${USER_VERSION}"
-    TARGET_ARCH="${TARGET_ARCH}"
+    VERSION_STR="0.1.0"
     COMPILER_ID="${CMAKE_C_COMPILER_ID}"
     COMPILER_VERSION="${CMAKE_C_COMPILER_VERSION}"
-    COMPILER_FLAGS="${CMAKE_C_FLAGS}"
+    COMPILER_FLAGS="-O2"
+    TARGET_ARCH="armv6-m"
 )
 
-if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(${TARGET_NAME} PRIVATE -Wall -Wextra -Wpedantic -Werror)
-endif()
+target_compile_options(${TARGET_NAME} PRIVATE -O2 -Wall -Wextra)
+
+target_link_libraries(${TARGET_NAME}
+    pico_stdlib
+    hardware_gpio
+)
+
+pico_enable_stdio_usb(${TARGET_NAME} 1)
+pico_enable_stdio_uart(${TARGET_NAME} 0)
+
+pico_add_extra_outputs(${TARGET_NAME})
