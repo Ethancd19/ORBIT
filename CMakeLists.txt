@@ -51,6 +51,10 @@ target_compile_definitions(${TARGET_NAME} PRIVATE
     TARGET_ARCH="armv6-m"
 )
 
+if(ALGO_SELECTED STREQUAL "aes_128_gcm" OR ALGO_SELECTED STREQUAL "ml_kem_512")
+    target_compile_definitions(${TARGET_NAME} PRIVATE SLOW_ALGO=1)
+endif()
+
 target_compile_options(${TARGET_NAME} PRIVATE -O2 -Wall -Wextra)
 
 target_link_libraries(${TARGET_NAME}

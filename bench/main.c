@@ -35,8 +35,13 @@
 #define NUM_MSG_SIZES        6
 
 static const size_t MSG_SIZES[NUM_MSG_SIZES] = {16, 64, 256, 1024, 4096, 16384};
+#ifdef SLOW_ALGO
+static const uint32_t BENCH_ITERS[NUM_MSG_SIZES]  = {50, 20, 10, 5, 3, 2};
+static const uint32_t WARMUP_ITERS[NUM_MSG_SIZES] = {10, 10,  5, 3, 2, 1};
+#else
 static const uint32_t BENCH_ITERS[NUM_MSG_SIZES]  = {1000, 1000, 1000, 500, 200, 100};
 static const uint32_t WARMUP_ITERS[NUM_MSG_SIZES] = {1000, 1000, 1000, 500, 200, 100};
+#endif
 
 
 #define MAX_MSG_LEN          16384

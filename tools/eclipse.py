@@ -54,13 +54,13 @@ BOARDS = {
 }
 
 # ----- Algorithm Definitions -----
-ALGORITHMS = {
+ALGORITHMS = [
     "ascon_aead128",
     "ascon_aead80pq",
     "gift_cofb",
-    "aes_gcm_128",
-    "ml-kem_512",
-}
+    "aes_128_gcm",
+    "ml_kem_512",
+]
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BUILD_DIR = os.path.join(PROJECT_ROOT, "build")
@@ -191,14 +191,51 @@ def save_results(lines, output_path, run_index, total_runs):
 
 def main():
     parser = argparse.ArgumentParser(description="ECLIPSE Benchmark Orchestration Tool")
-    parser.add_argument("--board", required=True, choices=BOARDS.keys(), help="Target board")
-    parser.add_argument("--algo", required=True, choices=ALGORITHMS, help="Algorithm to benchmark")
+    parser.add_argument("--board", required=False, choices=BOARDS.keys(), help="Target board")
+    parser.add_argument("--algo", required=False, choices=ALGORITHMS, help="Algorithm to benchmark")
     parser.add_argument("--runs", type=int, default=5, help="Number of independent runs (default: 5)")
     parser.add_argument("--output", default=None, help="Output CSV file path (default: results/<board>_<algo>.csv)")
     parser.add_argument("--flash", action="store_true", help="Automatically flash the firmware after building")
     parser.add_argument("--clean", action="store_true", help="Clean build directory before building")
     parser.add_argument("--port", default=None, help="Serial port to use for capturing results (default: auto-detect)")
     args = parser.parse_args()
+
+    if not args.board or not args.algo:
+        print("\n=== ECLIPSE Interactive Mode ===")
+
+        if not args.board:
+            print("Available boards:")
+            for i, (key, val) in enumerate(BOARDS.items(), 1):
+                print(f"  [{i}] {key} - {val['name']}")
+            while True:
+                choice = input("Select a board: ").strip()
+                board_keys = list(BOARDS.keys())
+                if choice.isdigit() and 1 <= int(choice) <= len(BOARDS):
+                    args.board = board_keys[int(choice) - 1]
+                    break
+                elif choice in BOARDS:
+                    args.board = choice
+                    break
+                print("Invalid choice, please try again.")
+
+        if not args.algo:
+            print("\nAvailable algorithms:")
+            for i, algo in enumerate(ALGORITHMS, 1):
+                print(f"  [{i}] {algo}")
+            while True:
+                choice = input("Select an algorithm: ").strip()
+                if choice.isdigit() and 1 <= int(choice) <= len(ALGORITHMS):
+                    args.algo = ALGORITHMS[int(choice) - 1]
+                    break
+                elif choice in ALGORITHMS:
+                    args.algo = choice
+                    break
+                print("Invalid choice, please try again.")
+        
+        if args.runs == 5:
+            runs_input = input("\nEnter number of runs (default 5): ").strip()
+            if runs_input.isdigit():
+                args.runs = int(runs_input)
 
     board_info = BOARDS[args.board]
     log(f"Board:     {board_info['name']}")
@@ -234,7 +271,8 @@ def main():
             log("could not find serial port - exiting")
             sys.exit(1)
 
-        lines = capture_serial(port, baud=BOARDS[args.board]["baud"], timeout=300)
+        timeout = 3600 if args.algo in ["aes_128_gcm", "ml_kem_512"] else 300
+        lines = capture_serial(port, baud=BOARDS[args.board]["baud"], timeout=timeout)
         save_results(lines, args.output, run, args.runs)
 
         if not args.flash and run < args.runs:
