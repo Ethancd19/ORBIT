@@ -32,11 +32,12 @@
 #define TARGET_ARCH "unknown-arch"
 #endif
 
-#define WARMUP_ITERATIONS    1000
-#define BENCH_ITERATIONS     1000
-
 #define NUM_MSG_SIZES        6
+
 static const size_t MSG_SIZES[NUM_MSG_SIZES] = {16, 64, 256, 1024, 4096, 16384};
+static const uint32_t BENCH_ITERS[NUM_MSG_SIZES]  = {1000, 1000, 1000, 500, 200, 100};
+static const uint32_t WARMUP_ITERS[NUM_MSG_SIZES] = {1000, 1000, 1000, 500, 200, 100};
+
 
 #define MAX_MSG_LEN          16384
 #define MAX_CT_LEN           (MAX_MSG_LEN + 64)
@@ -85,7 +86,7 @@ static int correctness_and_tamper(size_t mlen, size_t adlen) {
     return ok_roundtrip && ok_tamper;
 }
 
-static void bench_one(size_t mlen, size_t adlen, csv_row_t *row) {
+static void bench_one(size_t mlen, size_t adlen, uint32_t iterations, csv_row_t *row) {
     uint8_t *m = g_m;
     uint8_t *ad = g_ad;
     uint8_t *c = g_c;
@@ -104,7 +105,7 @@ static void bench_one(size_t mlen, size_t adlen, csv_row_t *row) {
 
     (void)crypto_aead_encrypt(c, &clen, m, (unsigned long long)mlen, ad, (unsigned long long)adlen, NULL, nonce, key);
 
-    for (uint32_t i = 0; i < WARMUP_ITERATIONS; i++) {
+    for (uint32_t i = 0; i < iterations; i++) {
         fill_deterministic(m, mlen, (uint32_t)(0xA5A5A5A5 + i));
         (void)crypto_aead_encrypt(c, &clen, m, (unsigned long long)mlen, ad, (unsigned long long)adlen, NULL, nonce, key);
     }
@@ -113,7 +114,7 @@ static void bench_one(size_t mlen, size_t adlen, csv_row_t *row) {
     platform_trigger_high();
     uint64_t start_enc_cycles = platform_cycle_count();
 
-    for (uint32_t i = 0; i < BENCH_ITERATIONS; i++) {
+    for (uint32_t i = 0; i < iterations; i++) {
         fill_deterministic(m, mlen, (uint32_t)(0xA5A5A5A5 + i));
         int rc = crypto_aead_encrypt(c, &clen, m, (unsigned long long)mlen, ad, (unsigned long long)adlen, NULL, nonce, key);
         if (rc != 0) {
@@ -127,7 +128,7 @@ static void bench_one(size_t mlen, size_t adlen, csv_row_t *row) {
     uint64_t end_enc_cycles = platform_cycle_count();
     platform_trigger_low();
 
-    for (uint32_t i = 0; i < WARMUP_ITERATIONS; i++) {
+    for (uint32_t i = 0; i < iterations; i++) {
         (void)crypto_aead_decrypt(m_dec, &mlen_dec, NULL, c, clen, ad, (unsigned long long)adlen, nonce, key);
     }
 
@@ -135,7 +136,7 @@ static void bench_one(size_t mlen, size_t adlen, csv_row_t *row) {
     platform_trigger_high();
     uint64_t start_dec_cycles = platform_cycle_count();
 
-    for (uint64_t i = 0; i < BENCH_ITERATIONS; i++) {
+    for (uint64_t i = 0; i < iterations; i++) {
         int rc = crypto_aead_decrypt(m_dec, &mlen_dec, NULL, c, clen, ad, (unsigned long long)adlen, nonce, key);
         if (rc != 0) {
             platform_trigger_low();
@@ -151,7 +152,7 @@ static void bench_one(size_t mlen, size_t adlen, csv_row_t *row) {
     uint64_t dec_cycles_total = end_dec_cycles - start_dec_cycles;
 
     // Correctness check
-    fill_deterministic(m, mlen, (uint32_t)(0xA5A5A5A5 + BENCH_ITERATIONS - 1));
+    fill_deterministic(m, mlen, (uint32_t)(0xA5A5A5A5 + iterations - 1));
     int ok_correctness = (mlen_dec == (unsigned long long)mlen) && bytes_equal(m, m_dec, mlen);
 
 
@@ -160,18 +161,18 @@ static void bench_one(size_t mlen, size_t adlen, csv_row_t *row) {
     row->key_len = CRYPTO_KEYBYTES;
     row->nonce_len = CRYPTO_NPUBBYTES;
     row->tag_len = CRYPTO_ABYTES;
-    row->iterations = BENCH_ITERATIONS;
+    row->iterations = iterations;
     row->freq_hz = platform_freq_hz();
 
     row->enc_cycles_total = enc_cycles_total;
     row->dec_cycles_total = dec_cycles_total;
-    row->enc_cycles_per_byte = (mlen > 0) ? (double)enc_cycles_total / (double)(mlen * BENCH_ITERATIONS) : 0.0;
-    row->dec_cycles_per_byte = (mlen > 0) ? (double)dec_cycles_total / (double)(mlen * BENCH_ITERATIONS) : 0.0;
+    row->enc_cycles_per_byte = (mlen > 0) ? (double)enc_cycles_total / (double)(mlen * iterations) : 0.0;
+    row->dec_cycles_per_byte = (mlen > 0) ? (double)dec_cycles_total / (double)(mlen * iterations) : 0.0;
 
     row->enc_time_us_total  = (double)enc_cycles_total / ((double)platform_freq_hz() / 1e6);
     row->dec_time_us_total  = (double)dec_cycles_total / ((double)platform_freq_hz() / 1e6);
-    row->enc_time_us_per_op = row->enc_time_us_total / BENCH_ITERATIONS;
-    row->dec_time_us_per_op = row->dec_time_us_total / BENCH_ITERATIONS;
+    row->enc_time_us_per_op = row->enc_time_us_total / iterations;
+    row->dec_time_us_per_op = row->dec_time_us_total / iterations;
 
     row->ok = ok_correctness ? 1 : 0;
     row->notes = row->notes ? row->notes : "";
@@ -243,6 +244,7 @@ int main(void) {
     for (size_t s = 0; s < NUM_MSG_SIZES; s++) {
         size_t mlen = MSG_SIZES[s];
         size_t adlen = BENCH_AD_LEN;
+        uint32_t iters = BENCH_ITERS[s];
 
         csv_row_t row = {0};
         char ts[32];
@@ -269,7 +271,7 @@ int main(void) {
             continue;
         }
 
-        bench_one(mlen, adlen, &row);
+        bench_one(mlen, adlen, iters, &row);
         print_csv_row(&row);
     }
 
