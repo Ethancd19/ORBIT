@@ -3,8 +3,6 @@
 #include <stdint.h>
 
 #include "util.h"
-#include "crypto_aead.h"
-#include "api.h"
 #include "platform.h"
 
 #define XSTR(x) STR(x)
@@ -33,8 +31,8 @@
 #endif
 
 #define NUM_MSG_SIZES        6
-
 static const size_t MSG_SIZES[NUM_MSG_SIZES] = {16, 64, 256, 1024, 4096, 16384};
+
 #ifdef SLOW_ALGO
 static const uint32_t BENCH_ITERS[NUM_MSG_SIZES]  = {50, 20, 10, 5, 3, 2};
 static const uint32_t WARMUP_ITERS[NUM_MSG_SIZES] = {10, 10,  5, 3, 2, 1};
@@ -43,16 +41,20 @@ static const uint32_t BENCH_ITERS[NUM_MSG_SIZES]  = {1000, 1000, 1000, 500, 200,
 static const uint32_t WARMUP_ITERS[NUM_MSG_SIZES] = {1000, 1000, 1000, 500, 200, 100};
 #endif
 
-
 #define MAX_MSG_LEN          16384
 #define MAX_CT_LEN           (MAX_MSG_LEN + 64)
+#define BENCH_AD_LEN         32
+
+/* AEAD Mode */
+#ifndef IS_KEM
+
+#include "crypto_aead.h"
+#include "api.h"
 
 static uint8_t g_m[MAX_MSG_LEN];
 static uint8_t g_ad[MAX_MSG_LEN];
 static uint8_t g_c[MAX_CT_LEN];
 static uint8_t g_m_dec[MAX_MSG_LEN];
-
-#define BENCH_AD_LEN         32
 
 static int correctness_and_tamper(size_t mlen, size_t adlen) {
     uint8_t *m = g_m;
@@ -183,60 +185,59 @@ static void bench_one(size_t mlen, size_t adlen, uint32_t iterations, csv_row_t 
     row->notes = row->notes ? row->notes : "";
 }
 
+#else /* IS_KEM */
+
+/* KEM mode */
+#include "api.h"
+
+static uint8_t kem_pk[PQCLEAN_MLKEM512_CLEAN_CRYPTO_PUBLICKEYBYTES];
+static uint8_t kem_sk[PQCLEAN_MLKEM512_CLEAN_CRYPTO_SECRETKEYBYTES];
+static uint8_t kem_ct[PQCLEAN_MLKEM512_CLEAN_CRYPTO_CIPHERTEXTBYTES];
+static uint8_t kem_ss_enc[PQCLEAN_MLKEM512_CLEAN_CRYPTO_BYTES];
+static uint8_t kem_ss_dec[PQCLEAN_MLKEM512_CLEAN_CRYPTO_BYTES];
+
+static void bench_kem_op(const char *op_name, uint32_t iterations, csv_row_t *row) {
+    uint64_t start_cycles, end_cycles;
+
+    for (uint32_t i = 0; i < iterations; i++) {
+        if (op_name[0] == 'k') {
+            PQCLEAN_MLKEM512_CLEAN_crypto_kem_keypair(kem_pk, kem_sk);
+        } else if (op_name[0] == 'e') {
+            PQCLEAN_MLKEM512_CLEAN_crypto_kem_enc(kem_ct, kem_ss_enc, kem_pk);
+        } else {
+            PQCLEAN_MLKEM512_CLEAN_crypto_kem_dec(kem_ss_dec, kem_ct, kem_sk);
+        }
+    }
+
+
+    platform_trigger_high();
+    start_cycles = platform_cycle_count();
+    for (uint32_t i = 0; i < iterations; i++) {
+        if (op_name[0] == 'k') {
+            PQCLEAN_MLKEM512_CLEAN_crypto_kem_keypair(kem_pk, kem_sk);
+        } else if (op_name[0] == 'e') {
+            PQCLEAN_MLKEM512_CLEAN_crypto_kem_enc(kem_ct, kem_ss_enc, kem_pk);
+        } else {
+            PQCLEAN_MLKEM512_CLEAN_crypto_kem_dec(kem_ss_dec, kem_ct, kem_sk);
+        }
+    }
+    end_cycles = platform_cycle_count();
+    platform_trigger_low();
+
+    uint64_t cycles_total = end_cycles - start_cycles;
+
+    row->enc_cycles_total   = cycles_total;
+    row->iterations         = iterations;
+    row->freq_hz            = platform_freq_hz();
+    row->enc_time_us_total  = (double)cycles_total / ((double)platform_freq_hz() / 1e6);
+    row->enc_time_us_per_op = row->enc_time_us_total / iterations;
+    row->ok                 = 1;
+    row->notes              = op_name;
+}
+
+#endif /* IS_KEM */
+
 int main(void) {
-    // size_t *msg_lens = NULL;
-    // size_t msg_count = 0;
-    // size_t *ad_lens = NULL;
-    // size_t ad_count = 0;
-    // uint64_t iter_small = DEFAULT_ITERATIONS_SMALL;
-    // uint64_t iter_large = DEFAULT_ITERATIONS_LARGE;
-
-    // for (int i = 1; i < argc; i++) {
-    //     const char *arg = argv[i];
-
-    //     if (streq(arg, "-l")) {
-    //         const char *v = need_value(&i, argc, argv, "-l");
-    //         static size_t msg_lens_buf[100];
-    //         msg_count = parse_size_list(v, msg_lens, 100);
-    //         if (msg_count == 0) { fprintf(stderr, "No valid message lengths provided.\n"); return 1; }
-
-    //     } else if (streq(arg, "-a")) {
-    //         const char *v = need_value(&i, argc, argv, "-a");
-    //         static size_t ad_lens_buf[100];
-    //         ad_count = parse_size_list(v, ad_lens, 100);
-    //         if (ad_count == 0) { fprintf(stderr, "No valid AD lengths provided.\n"); return 1; }
-
-    //     } else if (streq(arg, "-i")) {
-    //         const char *v = need_value(&i, argc, argv, "-i");
-    //         if (!parse_u64(v, &iter_small)) { fprintf(stderr, "Invalid -i value.\n"); return 1; }
-
-    //     } else if (streq(arg, "-I")) {
-    //         const char *v = need_value(&i, argc, argv, "-I");
-    //         if (!parse_u64(v, &iter_large)) { fprintf(stderr, "Invalid -I value.\n"); return 1; }
-
-    //     } else if (streq(arg, "-h") || streq(arg, "--help")) {
-    //         print_help(argv[0]);
-    //         return 0;
-
-    //     } else {
-    //         fprintf(stderr, "Unknown option: %s\n", arg);
-    //         print_help(argv[0]);
-    //         return 1;
-    //     }
-    // }
-
-    // if (!msg_lens) {
-    //     msg_count = 4;
-    //     msg_lens = malloc(sizeof(size_t) * msg_count);
-    //     size_t d[] = {16, 64, 256, 1024};
-    //     memcpy(msg_lens, d, sizeof(d));
-    // }
-    // if (!ad_lens) {
-    //     ad_count = 2;
-    //     ad_lens = malloc(sizeof(size_t) * ad_count);
-    //     size_t d[] = {0, 32};
-    //     memcpy(ad_lens, d, sizeof(d));
-    // }
     platform_init();
 
     while (!stdio_usb_connected()) {
@@ -245,7 +246,39 @@ int main(void) {
     sleep_ms(500);  
 
     print_csv_header();
+#ifdef IS_KEM
+    PQCLEAN_MLKEM512_CLEAN_crypto_kem_keypair(kem_pk, kem_sk);
+    PQCLEAN_MLKEM512_CLEAN_crypto_kem_enc(kem_ct, kem_ss_enc, kem_pk);
 
+    const char *ops[] = {"keygen", "encap", "decap"};
+    const uint32_t kem_iters = 10;
+
+    for (int op = 0; op < 3; op++) {
+        csv_row_t row = {0};
+        char ts[32];
+        char rid[256];
+
+        make_timestamp_iso_utc(ts, sizeof(ts));
+        make_run_id(rid, sizeof(rid), XSTR(ALGO_NAME), BOARD_NAME, BOARD_NAME, TARGET_ARCH);
+
+        row.timestamp_iso = ts;
+        row.run_id = rid;
+        row.algorithm = XSTR(ALGO_NAME);
+        row.implementation = "ref";
+        row.version = VERSION_STR;
+        row.board = BOARD_NAME;
+        row.cflags = COMPILER_FLAGS;
+        row.arch = TARGET_ARCH;
+        row.compiler = COMPILER_ID;
+        row.compiler_version = COMPILER_VERSION;
+        row.key_len = PQCLEAN_MLKEM512_CLEAN_CRYPTO_SECRETKEYBYTES;
+        row.tag_len = PQCLEAN_MLKEM512_CLEAN_CRYPTO_BYTES;
+
+        bench_kem_op(ops[op], kem_iters, &row);
+        print_csv_row(&row);
+    }
+
+#else
     for (size_t s = 0; s < NUM_MSG_SIZES; s++) {
         size_t mlen = MSG_SIZES[s];
         size_t adlen = BENCH_AD_LEN;
@@ -279,6 +312,7 @@ int main(void) {
         bench_one(mlen, adlen, iters, &row);
         print_csv_row(&row);
     }
+#endif
 
     printf("ECLIPSE benchmark completed.\n");
     fflush(stdout);
