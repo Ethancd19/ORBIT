@@ -16,6 +16,12 @@ static inline void _systick_init(void) {
     systick_hw->csr = 0x5;
 }
 
+static inline void platform_puts(const char *str) {
+    while (*str) {
+        putchar_raw(*str++);
+    }
+}
+
 static inline uint64_t platform_cycle_count(void) {
     uint32_t cvr = systick_hw->cvr & 0x00FFFFFF;
     uint64_t us = time_us_64();

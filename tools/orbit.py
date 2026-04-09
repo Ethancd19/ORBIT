@@ -71,13 +71,24 @@ ALGORITHMS = [
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BUILD_DIR = os.path.join(PROJECT_ROOT, "build")
 RESULTS_DIR = os.path.join(PROJECT_ROOT, "results")
+ARCHIVE_DIR = os.path.join(RESULTS_DIR, "archived")
 
 TIMESTAMP_COL = "timestamp_iso"
 RUN_ID_COL = "run_id"
+DEFAULT_CSV_HEADER = (
+    "timestamp_iso,run_id,algorithm,implementation,version,board,arch,"
+    "compiler,compiler_version,cflags,freq_hz,msg_len,ad_len,key_len,"
+    "nonce_len,tag_len,iterations,enc_cycles_total,dec_cycles_total,"
+    "enc_cycles_per_byte,dec_cycles_per_byte,enc_time_us_total,"
+    "dec_time_us_total,enc_time_us_per_op,dec_time_us_per_op,flash_bytes,"
+    "ram_bytes,stack_bytes_peak,energy_uJ_enc_total,energy_uJ_dec_total,"
+    "energy_uJ_per_byte_enc,energy_uJ_per_byte_dec,avg_power_mW_enc,"
+    "avg_power_mW_dec,ok,notes"
+)
 
 FLASH_FUNCS = {
     "pico": lambda binary: flash_pico(binary),
-    # "stm32":   lambda binary: flash_stm32(binary),
+    "stm32": lambda binary: flash_stm32(binary),
     # "nrf52":   lambda binary: flash_nrf52(binary),
     # "esp32c6": lambda binary: flash_esp32c6(binary),
     # "rpi5":    lambda binary: flash_rpi5(binary),
@@ -86,6 +97,24 @@ FLASH_FUNCS = {
 # ----- Logging -----
 def log(msg):
     print(f"[ORBIT] {msg}")
+
+def archive_existing_result(path: str) -> None:
+    if not os.path.exists(path):
+        return
+
+    os.makedirs(ARCHIVE_DIR, exist_ok=True)
+
+    base_name = os.path.basename(path)
+    stem, ext = os.path.splitext(base_name)
+    candidate = os.path.join(ARCHIVE_DIR, base_name)
+    index = 1
+
+    while os.path.exists(candidate):
+        candidate = os.path.join(ARCHIVE_DIR, f"{stem}_{index}{ext}")
+        index += 1
+
+    shutil.move(path, candidate)
+    log(f"Archived existing output to: {candidate}")
 
 # ----- Timestamp Formatting -----
 def host_timestamp_iso() -> str:
@@ -147,6 +176,31 @@ def run_command(cmd, cwd=None):
         print(f"Command failed with exit code {ret}")
         sys.exit(1)
 
+def find_build_artifact(board, algo):
+    target_name = f"ORBIT_{algo}_{board}"
+    candidates = []
+
+    if board == "pico":
+        candidates.extend([
+            os.path.join(BUILD_DIR, f"{target_name}.uf2"),
+            os.path.join(BUILD_DIR, target_name),
+        ])
+    elif board == "stm32":
+        candidates.extend([
+            os.path.join(BUILD_DIR, f"{target_name}.bin"),
+            os.path.join(BUILD_DIR, target_name),
+        ])
+    else:
+        candidates.extend([
+            os.path.join(BUILD_DIR, f"{target_name}.elf"),
+            os.path.join(BUILD_DIR, target_name),
+        ])
+
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    return None
+
 def build(board, algo, clean=False):
     if clean and os.path.exists(BUILD_DIR):
         log(f"Cleaning build directory '{BUILD_DIR}'...")
@@ -155,28 +209,30 @@ def build(board, algo, clean=False):
     os.makedirs(BUILD_DIR, exist_ok=True)
 
     log(f"Configuring for {board} with algorithm {algo}...")
+    extra_cmake_args = ""
+    if board == "stm32":
+        extra_cmake_args = (
+            " -DCMAKE_C_COMPILER=arm-none-eabi-gcc"
+            " -DCMAKE_CXX_COMPILER=arm-none-eabi-g++"
+            " -DCMAKE_ASM_COMPILER=arm-none-eabi-gcc"
+            " -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY"
+        )
     run_command(
         f"cmake -S {PROJECT_ROOT} -B {BUILD_DIR} "
         f"-DBOARD={board} "
-        f"-DALGO_SELECTED={algo}",
+        f"-DALGO_SELECTED={algo}"
+        f"{extra_cmake_args}",
     )
 
     log("Building...")
     run_command(f"cmake --build {BUILD_DIR} --config Release -- -j4")
 
-    target_name = f"ORBIT_{algo}_{board}"
-    uf2 = os.path.join(BUILD_DIR, f"{target_name}.uf2")
-    elf = os.path.join(BUILD_DIR, f"{target_name}.elf")
-
-    if os.path.exists(uf2):
-        log(f"Build successful. UF2 file located at: {uf2}")
-        return uf2
-    elif os.path.exists(elf):
-        log(f"Build successful. ELF file located at: {elf}")
-        return elf
-    else:
+    artifact = find_build_artifact(board, algo)
+    if artifact is None:
         log("Build failed: No output file found.")
         sys.exit(1)
+    log(f"Build successful. Artifact located at: {artifact}")
+    return artifact
 
 def _attach_pico_wsl():
     """
@@ -287,6 +343,27 @@ def flash_pico(binary_path):
     log("Reattaching Pico serial device to WSL2...")
     _attach_pico_wsl()
     time.sleep(3)
+
+def flash_stm32(binary_path):
+    openocd_cfg = os.environ.get(
+        "ORBIT_STM32_OPENOCD_CFG",
+        "interface/stlink.cfg -f target/stm32f4x.cfg"
+    )
+
+    if binary_path.endswith(".bin"):
+        flash_cmd = (
+            f'openocd -f {openocd_cfg} '
+            f'-c "init; reset init; program {binary_path} 0x08000000 verify; reset run; shutdown"'
+        )
+    else:
+        flash_cmd = (
+            f'openocd -f {openocd_cfg} '
+            f'-c "init; reset init; program {binary_path} verify; reset run; shutdown"'
+        )
+
+    log("Flashing STM32 via OpenOCD...")
+    run_command(flash_cmd)
+    time.sleep(2)
 # ----- Serial Capture and Result Processing -----
 
 def find_serial_port(baud=115200, timeout=30):
@@ -305,21 +382,34 @@ def find_serial_port(baud=115200, timeout=30):
 def capture_serial(port, baud=115200, timeout=300):
     log(f"Opening {port} at {baud} baud...")
     lines = []
+    pending = ""
 
     try:
         with serial.Serial(port, baudrate=baud, timeout=1) as ser:
-            ser.flushInput()
             start = time.time()
             while time.time() - start < timeout:
-                raw = ser.readline()
-                if not raw:
+                chunk = ser.read(ser.in_waiting or 1)
+                if not chunk:
                     continue
-                line = raw.decode("utf-8", errors="replace").strip()
+
+                text = chunk.decode("utf-8", errors="replace")
+                pending += text
+
+                while "\n" in pending:
+                    line, pending = pending.split("\n", 1)
+                    line = line.rstrip("\r")
+                    if not line:
+                        continue
+                    print(f"    {line}")
+                    lines.append(line)
+                    if "ORBIT benchmark completed" in line:
+                        log("Benchmark complete signal received")
+                        return lines
+
+            if pending.strip():
+                line = pending.rstrip("\r")
                 print(f"    {line}")
                 lines.append(line)
-                if "ORBIT benchmark completed" in line:
-                    log("Benchmark complete signal received")
-                    break
     except serial.SerialException as e:
         log(f"Error reading serial port: {e}")
         sys.exit(1)
@@ -328,14 +418,13 @@ def capture_serial(port, baud=115200, timeout=300):
 def save_results(lines, output_path, run_index, total_runs, board, algo):
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
 
-    ts_now = host_timestamp_iso()
-
     header = None
     data_rows = []
     for line in lines:
         if line.startswith("timestamp_iso"):
             header = line
         elif line.startswith("1970") or (line[:4].isdigit() and line[4] == "-"):
+            ts_now = host_timestamp_iso()
             try:
                 parsed = next(csv.reader([line]))
             except StopIteration:
@@ -353,17 +442,19 @@ def save_results(lines, output_path, run_index, total_runs, board, algo):
     
     if not data_rows:
         log("Warning: No data rows found in serial output.")
-        return
+        return False
     
     write_header = (run_index == 1) and not os.path.exists(output_path)
+    header_to_write = header or DEFAULT_CSV_HEADER
 
     with open(output_path, "a", encoding="utf-8", newline="") as f:
-        if write_header and header:
-            f.write(f"run,{header}\n")
+        if write_header:
+            f.write(f"run,{header_to_write}\n")
         for row in data_rows:
             f.write(f"{row}\n")
     
     log(f"Run {run_index}/{total_runs} results saved to {output_path}")
+    return True
 
 # ----- Main -----
 def main():
@@ -438,6 +529,8 @@ Examples:
         os.makedirs(RESULTS_DIR, exist_ok=True)
         args.output = os.path.join(RESULTS_DIR, f"{args.board}_{args.algo}.csv")
 
+    archive_existing_result(args.output)
+
     log(f"Board:      {board_info['name']}")
     log(f"Algorithm:  {args.algo}")
     log(f"Runs:       {args.runs}")
@@ -463,6 +556,12 @@ Examples:
                 else:
                     log(f"Run {run}: picotool will reboot Pico into BOOTSEL automatically...")
                 FLASH_FUNCS[args.board](binary)
+            elif args.board == "stm32":
+                if run == 1:
+                    log("Run 1 will flash STM32 via OpenOCD and then capture serial output.")
+                else:
+                    log(f"Run {run}: reflashing STM32 to restart the benchmark...")
+                FLASH_FUNCS[args.board](binary)
             else:
                 log(f"Auto-flash not yet implemented for {BOARDS[args.board]['name']}")
                 log(f"Please flash manually: {binary}")
@@ -472,10 +571,14 @@ Examples:
                 log("Manual flash mode - please flash the board now")
                 log(f"Binary to flash: {binary}")
                 log("Flash the binary now, then come back here.")
+                input("Press Enter when the board is flashed and ready...")
             else:
-                log("Reflash the board for the next run:")
-                log("  Pico: hold BOOTSEL, re-plug USB, copy the UF2 to RPI-RP2")
-                log(f"  UF2: {binary}") 
+                log("Reflash or reset the board for the next run:")
+                if args.board == "pico":
+                    log("  Pico: hold BOOTSEL, re-plug USB, copy the UF2 to RPI-RP2")
+                elif args.board == "stm32":
+                    log("  STM32: flash/reset the board so the benchmark restarts from reset")
+                log(f"  Artifact: {binary}")
                 input("Press Enter when the board is flashed and ready...")
 
         port = args.port or find_serial_port(timeout=20)
@@ -489,7 +592,10 @@ Examples:
     log(f"\nAll {args.runs} runs complete:")
     log(f"Results saved to: {args.output}")
 
-    postprocess_csv(args.output)
+    if os.path.exists(args.output):
+        postprocess_csv(args.output)
+    else:
+        log("No results CSV was created, so post-processing was skipped.")
 
     
 if __name__ == "__main__":

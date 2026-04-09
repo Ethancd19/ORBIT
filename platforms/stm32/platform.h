@@ -2,17 +2,22 @@
 #define PLATFORM_H
 
 #include <stdint.h>
+#include <string.h>
 #include "stm32f4xx_hal.h"
 
-#define PLATFORM_FREQ_HZ    16000000UL
 #define TRIGGER_PIN_PORT    GPIOA
 #define TRIGGER_PIN         GPIO_PIN_8
 
 extern UART_HandleTypeDef huart2;
 
-static inline int __io_putchar(int ch) {
-    HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
-    return ch;
+static inline void platform_puts(const char *str) {
+    while (*str) {
+        /* Poll TXE directly - no HAL timeout dependency */
+        while (!(USART2->SR & USART_SR_TXE)) {}
+        USART2->DR = (uint8_t)(*str++);
+    }
+    /* Wait for transmission complete */
+    while (!(USART2->SR & USART_SR_TC)) {}
 }
 
 static inline void _dwt_init(void) {
@@ -21,33 +26,57 @@ static inline void _dwt_init(void) {
     DWT->CTRL  |= DWT_CTRL_CYCCNTENA_Msk;
 }
 
+static inline void SystemClock_Config(void) {
+    RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+    RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+
+    __HAL_RCC_PWR_CLK_ENABLE();
+    __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
+
+    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+    RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+    RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+    RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+    RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
+    RCC_OscInitStruct.PLL.PLLM = 16;
+    RCC_OscInitStruct.PLL.PLLN = 360;
+    RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+    RCC_OscInitStruct.PLL.PLLQ = 7;
+    RCC_OscInitStruct.PLL.PLLR = 2;
+    if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
+        while (1) {}
+    }
+
+    if (HAL_PWREx_EnableOverDrive() != HAL_OK) {
+        while (1) {}
+    }
+
+    RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK
+                                | RCC_CLOCKTYPE_SYSCLK
+                                | RCC_CLOCKTYPE_PCLK1
+                                | RCC_CLOCKTYPE_PCLK2;
+    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+    RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+    RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
+    RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
+    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5) != HAL_OK) {
+        while (1) {}
+    }
+}
+
 static inline void platform_init(void) {
-    /* Raw register UART test - before HAL_Init */
-    /* Enable GPIOA and USART2 clocks directly */
-    RCC->AHB1ENR |= (1 << 0);   /* GPIOA clock */
-    RCC->APB1ENR |= (1 << 17);  /* USART2 clock */
-    
-    /* PA2 = AF7 (USART2 TX) */
-    GPIOA->MODER   &= ~(3 << 4);
-    GPIOA->MODER   |=  (2 << 4);   /* Alternate function */
-    GPIOA->AFR[0]  &= ~(0xF << 8);
-    GPIOA->AFR[0]  |=  (7 << 8);   /* AF7 = USART2 */
-    
-    /* Configure USART2: 115200 baud at 16MHz HSI */
-    /* BRR = 16000000 / 115200 = 138.8 -> mantissa=138, fraction=13 */
-    USART2->BRR = (138 << 4) | 13;
-    USART2->CR1 = (1 << 3) | (1 << 13); /* TE | UE */
-    
-    /* Send "X\r\n" */
-    while (!(USART2->SR & (1 << 7)));  /* Wait TXE */
-    USART2->DR = 'X';
-    while (!(USART2->SR & (1 << 7)));
-    USART2->DR = '\r';
-    while (!(USART2->SR & (1 << 7)));
-    USART2->DR = '\n';
-    while (!(USART2->SR & (1 << 6)));  /* Wait TC */
-    
+    /* Enable FPU - required for hard float ABI (-mfloat-abi=hard) */
+    SCB->CPACR |= ((3UL << 10*2) | (3UL << 11*2));
+    __DSB();
+    __ISB();
+
+    /* Route configurable faults to their own handlers instead of escalating. */
+    SCB->SHCSR |= SCB_SHCSR_USGFAULTENA_Msk
+               |  SCB_SHCSR_BUSFAULTENA_Msk
+               |  SCB_SHCSR_MEMFAULTENA_Msk;
+
     HAL_Init();
+    SystemClock_Config();
 
     __HAL_RCC_USART2_CLK_ENABLE();
     __HAL_RCC_GPIOA_CLK_ENABLE();
@@ -94,7 +123,7 @@ static inline void platform_trigger_low(void) {
 }
 
 static inline uint32_t platform_freq_hz(void) {
-    return PLATFORM_FREQ_HZ;
+    return HAL_RCC_GetHCLKFreq();
 }
 
 static inline int platform_stdio_ready(void) { return 1; }

@@ -18,7 +18,11 @@ uint64_t now_ns(void) {
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
 #else
-    return (uint64_t)(platform_cycle_count() * 1000ULL / (PLATFORM_FREQ_HZ / 1000000ULL));
+    uint32_t freq_hz = platform_freq_hz();
+    if (freq_hz == 0U) {
+        return 0;
+    }
+    return (uint64_t)(platform_cycle_count() * 1000ULL / (freq_hz / 1000000ULL));
 #endif
 }
 
@@ -153,13 +157,15 @@ int bytes_equal(const uint8_t *a, const uint8_t *b, size_t len) {
 }
 
 void print_hex(const uint8_t *buf, size_t len) {
+    char tmp[3];
     for (size_t i = 0; i < len; i++) {
-        printf("%02x", buf[i]);
+        snprintf(tmp, sizeof(tmp), "%02x", buf[i]);
+        platform_puts(tmp);
     }
 }
 
 void print_csv_header(void) {
-    printf(
+    platform_puts(
         "timestamp_iso,run_id,algorithm,implementation,version,board,arch,compiler,compiler_version,cflags,freq_hz,"
         "msg_len,ad_len,key_len,nonce_len,tag_len,iterations,"
         "enc_cycles_total,dec_cycles_total,enc_cycles_per_byte,dec_cycles_per_byte,"
@@ -174,9 +180,129 @@ static const char *csv_escape(const char *str) {
     return str ? str : "";
 }
 
-void print_csv_row(const csv_row_t *row) {
+#ifdef STM32F446xx
+static void put_u64(uint64_t value) {
+    char buf[21];
+    int i = 0;
 
-    printf(
+    if (value == 0) {
+        platform_puts("0");
+        return;
+    }
+
+    while (value > 0 && i < (int)sizeof(buf)) {
+        buf[i++] = (char)('0' + (value % 10U));
+        value /= 10U;
+    }
+
+    while (i > 0) {
+        char ch[2];
+        ch[0] = buf[--i];
+        ch[1] = '\0';
+        platform_puts(ch);
+    }
+}
+
+static void put_size(size_t value) {
+    put_u64((uint64_t)value);
+}
+
+static void put_int(int value) {
+    if (value < 0) {
+        platform_puts("-");
+        put_u64((uint64_t)(-(int64_t)value));
+    } else {
+        put_u64((uint64_t)value);
+    }
+}
+
+static void put_fixed6(double value) {
+    uint64_t whole;
+    uint32_t frac;
+
+    if (value < 0.0) {
+        platform_puts("-");
+        value = -value;
+    }
+
+    whole = (uint64_t)value;
+    frac = (uint32_t)((value - (double)whole) * 1000000.0 + 0.5);
+    if (frac >= 1000000U) {
+        whole++;
+        frac -= 1000000U;
+    }
+
+    put_u64(whole);
+    platform_puts(".");
+
+    {
+        char frac_buf[7];
+        for (int i = 5; i >= 0; i--) {
+            frac_buf[i] = (char)('0' + (frac % 10U));
+            frac /= 10U;
+        }
+        frac_buf[6] = '\0';
+        platform_puts(frac_buf);
+    }
+}
+
+static void put_csv_str(const char *str, int quote) {
+    if (quote) {
+        platform_puts("\"");
+    }
+    platform_puts(csv_escape(str));
+    if (quote) {
+        platform_puts("\"");
+    }
+}
+#endif
+
+void print_csv_row(const csv_row_t *row) {
+#ifdef STM32F446xx
+    put_csv_str(row->timestamp_iso, 0); platform_puts(",");
+    put_csv_str(row->run_id, 0); platform_puts(",");
+    put_csv_str(row->algorithm, 0); platform_puts(",");
+    put_csv_str(row->implementation, 0); platform_puts(",");
+    put_csv_str(row->version, 0); platform_puts(",");
+    put_csv_str(row->board, 0); platform_puts(",");
+    put_csv_str(row->arch, 0); platform_puts(",");
+    put_csv_str(row->compiler, 0); platform_puts(",");
+    put_csv_str(row->compiler_version, 0); platform_puts(",");
+    put_csv_str(row->cflags, 1); platform_puts(",");
+    put_u64((uint64_t)row->freq_hz); platform_puts(",");
+
+    put_size(row->msg_len); platform_puts(",");
+    put_size(row->ad_len); platform_puts(",");
+    put_size(row->key_len); platform_puts(",");
+    put_size(row->nonce_len); platform_puts(",");
+    put_size(row->tag_len); platform_puts(",");
+    put_u64((uint64_t)row->iterations); platform_puts(",");
+
+    put_u64((uint64_t)row->enc_cycles_total); platform_puts(",");
+    put_u64((uint64_t)row->dec_cycles_total); platform_puts(",");
+    put_fixed6(row->enc_cycles_per_byte); platform_puts(",");
+    put_fixed6(row->dec_cycles_per_byte); platform_puts(",");
+    put_fixed6(row->enc_time_us_total); platform_puts(",");
+    put_fixed6(row->dec_time_us_total); platform_puts(",");
+    put_fixed6(row->enc_time_us_per_op); platform_puts(",");
+    put_fixed6(row->dec_time_us_per_op); platform_puts(",");
+
+    put_u64((uint64_t)row->flash_bytes); platform_puts(",");
+    put_u64((uint64_t)row->ram_bytes); platform_puts(",");
+    put_u64((uint64_t)row->stack_bytes_peak); platform_puts(",");
+
+    put_fixed6(row->energy_uJ_enc_total); platform_puts(",");
+    put_fixed6(row->energy_uJ_dec_total); platform_puts(",");
+    put_fixed6(row->energy_uJ_per_byte_enc); platform_puts(",");
+    put_fixed6(row->energy_uJ_per_byte_dec); platform_puts(",");
+    put_fixed6(row->avg_power_mW_enc); platform_puts(",");
+    put_fixed6(row->avg_power_mW_dec); platform_puts(",");
+
+    put_int(row->ok); platform_puts(",");
+    put_csv_str(row->notes, 1); platform_puts("\n");
+#else
+    static char buf[1024];
+    int n = snprintf(buf, sizeof(buf),
         /* 10 string fields before freq_hz (cflags quoted) */
         "%s,%s,%s,%s,%s,%s,%s,%s,%s,\"%s\",%llu,"
         /* inputs */
@@ -239,5 +365,8 @@ void print_csv_row(const csv_row_t *row) {
         csv_escape(row->notes)
     );
 
-    fflush(stdout);
+    if (n > 0) {
+        platform_puts(buf);
+    }
+#endif
 }
