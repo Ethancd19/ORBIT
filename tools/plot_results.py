@@ -1,248 +1,261 @@
-#!/usr/bin/env python3
+"""
+ORBIT Benchmark Plotter
+Generates publication-quality charts from ORBIT CSV result files.
+ 
+Usage:
+    python3 tools/plot_results.py --results_dir results/ --board pico
+    python3 tools/plot_results.py --results_dir results/ --board pico --output_dir plots/
+"""
+
 import argparse
-from pathlib import Path
-import re
-
-import matplotlib.pyplot as plt
-
+import os
+import glob
 import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 
-REQUIRED_COLUMNS = [
-    "timestamp_iso",
-    "run_id",
-    "algorithm",
-    "implementation",
-    "version",
-    "board",
-    "arch",
-    "compiler",
-    "compiler_version",
-    "cflags",
-    "msg_len",
-    "ad_len",
-    "iterations",
-    "enc_time_us_total",
-    "dec_time_us_total",
-    "enc_time_us_per_op",
-    "dec_time_us_per_op",
-    "ok",
-]
+ALGORITHM_COLORS = {
+    "ascon_aead128":  "#185FA5",
+    "ascon_aead80pq": "#0F6E56",
+    "gift_cofb":      "#993C1D",
+    "aes_128_gcm":    "#888780",
+    "ml_kem_512":     "#534AB7",
+}
 
-def compute_derived(df: pd.DataFrame) -> pd.DataFrame:
-    numeric_cols = [
-        "msg_len",
-        "ad_len",
-        "iterations",
-        "enc_time_us_total",
-        "dec_time_us_total",
-        "enc_time_us_per_op",
-        "dec_time_us_per_op",
-    ]
-    for col in numeric_cols:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
+ALGORITHM_LABELS = {
+    "ascon_aead128":  "Ascon-128",
+    "ascon_aead80pq": "Ascon-80pq",
+    "gift_cofb":      "GIFT-COFB",
+    "aes_128_gcm":    "AES-128-GCM",
+    "ml_kem_512":     "ML-KEM-512",
+}
 
-    df = df[
-        (df["msg_len"] > 0) &
-        (df["iterations"] > 0) &
-        (df["enc_time_us_total"] > 0) &
-        (df["dec_time_us_total"] > 0)
-    ].copy()
-    
-    # df["enc_cycles_per_byte"] = df["enc_time_us_total"] / df["msg_len"] * df["iterations"]
-    # df["dec_cycles_per_byte"] = df["dec_time_us_total"] / df["msg_len"] * df["iterations"]
-    df["enc_us_per_byte"] = df["enc_time_us_total"] / (df["msg_len"] * df["iterations"])
-    df["dec_us_per_byte"] = df["dec_time_us_total"] / (df["msg_len"] * df["iterations"])
+AEAD_ALGORITHMS = [k for k in ALGORITHM_LABELS if k != "ml_kem_512"]
+MSG_SIZES = [16, 64, 256, 1024, 4096, 16384]
+MSG_LABELS = ["16B", "64B", "256B", "1KB", "4KB", "16KB"]
 
-    df["enc_MBps"] = (df["msg_len"] * df["iterations"]) / (df["enc_time_us_total"] * 1e-6) / 1e6
-    df["dec_MBps"] = (df["msg_len"] * df["iterations"]) / (df["dec_time_us_total"] * 1e-6) / 1e6
-    return df
-
-def _slug(s: str) -> str:
-    s = str(s).strip().lower()
-    s = re.sub(r'[^a-z0-9]+', '_', s)
-    s = re.sub(r'_+', '_', s)
-    s = s.strip('_')
-    return s
-
-def make_plot_filename(outdir: Path, df: pd.DataFrame, metric: str, args) -> Path:
-    op = "enc" if args.enc_only else "dec" if args.dec_only else "both"
-    ad_tag = f"ad{args.ad.replace(',', '-')}" if args.ad else "multi_ad"
-
-    boards = sorted(set(df["board"].astype(str)))
-    board_tag = _slug(boards[0]) if len(boards) == 1 else "multi_board"
-
-    algos = sorted(set(df["algorithm"].astype(str)))
-    algo_tag = _slug(algos[0]) if len(algos) == 1 else "compare_" + _slug("-".join(algos))
-
-    impls = sorted(set(df["implementation"].astype(str)))
-    impl_tag = _slug(impls[0]) if len(impls) == 1 else "compare_" + _slug("-".join(impls))
-
-    filename = f"{algo_tag}_{impl_tag}_{board_tag}_{ad_tag}_{op}_{metric}.png"
-    return outdir / filename
-
-def main():
-    parser = argparse.ArgumentParser(description="Load benchmark results and compute derived metrics.")
-    parser.add_argument("input_csv", nargs="+", type=Path, help="Path to input CSV file(s) with benchmark results.")
-    parser.add_argument("--outdir", type=Path, default=Path("plots"), help="Directory to save plots .")
-    parser.add_argument("--show", action="store_true", help="Show plots interactively.")
-    parser.add_argument("--ad", default=None, help="Filter results to only include this AD length.")
-    parser.add_argument("--enc-only", action="store_true", help="Only process encryption results.")
-    parser.add_argument("--dec-only", action="store_true", help="Only process decryption results.")
-    parser.add_argument("--compare", choices=["none","algorithm", "implementation", "board"], default="none", help="Fields to compare in plots.")
-    args = parser.parse_args()
-    
+def load_results(results_dir, board=None):
+    files = glob.glob(os.path.join(results_dir, "*.csv"))
     dfs = []
-    for csv_path in args.input_csv:
-        if not csv_path.exists():
-            raise SystemExit(f"Error: Input CSV file '{csv_path}' does not exist.")
-        dfs.append(pd.read_csv(csv_path))
+    for file in files:
+        try:
+            dfs.append(pd.read_csv(file))
+        except Exception as e:
+            print(f"Warning: Could not read {file}: {e}")
+    if not dfs:
+        raise ValueError(f"No valid CSV files found in {results_dir}")
+        return pd.DataFrame() 
     df = pd.concat(dfs, ignore_index=True)
+    return df[df["board"] == board] if board else df
 
-    missing_cols = [col for col in REQUIRED_COLUMNS if col not in df.columns]
-    if missing_cols:
-        raise SystemExit(f"Error: Input CSV file is missing required columns:\n" + "\n".join(f"  - {c}" for c in missing_cols))
-    
-    df_ok = df[df["ok"] == 1].copy()
-    if df_ok.empty:
-        raise SystemExit("Error: No successful benchmark runs (ok == 1) found in the input CSV.")
-    
-    bad = df_ok[
-        (df_ok["msg_len"] <= 0) |
-        (df_ok["iterations"] <= 0) |
-        (df_ok["enc_time_us_total"] <= 0) |
-        (df_ok["dec_time_us_total"] <= 0)
-    ]
-    if not bad.empty:
-        print("\nWarning: Some rows have non-positive values for msg_len, iterations, or times. These will be excluded from derived metrics.")
-        print(bad[["algorithm", "implementation", "msg_len", "iterations", "enc_time_us_total", "dec_time_us_total"]])
+def apply_style():
+    plt.rcParams.update({
+        "font.family":        "sans-serif",
+        "font.size":          11,
+        "axes.titlesize":     13,
+        "axes.titleweight":   "normal",
+        "axes.labelsize":     11,
+        "axes.spines.top":    False,
+        "axes.spines.right":  False,
+        "axes.grid":          True,
+        "grid.alpha":         0.3,
+        "grid.linestyle":     "--",
+        "legend.frameon":     False,
+        "legend.fontsize":    10,
+        "figure.dpi":         150,
+        "savefig.dpi":        300,
+        "savefig.bbox":       "tight",
+    })
 
-    df_ok = compute_derived(df_ok)
+def us_formatter(x, _):
+    return f"{x/1000:.1f}" if x >= 1000 else f"{int(x)}us"
 
-    if args.ad is not None:
-        allowed = {int(x.strip()) for x in args.ad.split(",") if x.strip()}
-        df_ok = df_ok[df_ok["ad_len"].isin(allowed)].copy()
-    
-    if args.compare == "none":
-        if df_ok["algorithm"].nunique() != 1 or df_ok["implementation"].nunique() != 1 or df_ok["board"].nunique() != 1:
-            raise SystemExit(
-                "Error: Multiple algorithms/implementations/boards detected.\n"
-                "For 'one algorithm, many ADs' plots, pass a single CSV (or filter your inputs),\n"
-                "or use --compare algorithm|implementation|board."
-            )
-    
-    plot_enc = not args.dec_only
-    plot_dec = not args.enc_only
+def cbp_formatter(x, _):
+    return f"{int(x/1000)}K" if x >= 1000 else str(int(x))
 
-    group_cols = ["algorithm", "implementation", "board", "compiler", "cflags", "ad_len"]
-    summary = (
-        df_ok.groupby(group_cols)
-        .agg(
-            rows=("run_id", "count"),
-            msg_min=("msg_len", "min"),
-            msg_max=("msg_len", "max"),
-            enc_us_op_mean=("enc_time_us_per_op", "mean"),
-            dec_us_op_mean=("dec_time_us_per_op", "mean"),
-            enc_MBps_mean=("enc_MBps", "mean"),
-            dec_MBps_mean=("dec_MBps", "mean"),
+def save_figure(fig, output_path, filename):
+    path = os.path.join(output_path, filename)
+    fig.savefig(path)
+    plt.close(fig)
+    print(f"Saved: {path}")
+
+def mean_for(df, algo, col, msg_len=None, note=None):
+    mask = df["algorithm"] == algo
+    if msg_len is not None:
+        mask &= df["msg_len"] == msg_len
+    if note is not None:
+        mask &= df["notes"] == note
+    subset = df[mask]
+    return subset[col].mean() if not subset.empty else None
+
+def plot_cycles_per_byte(df, output_path, board):
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    for algo in AEAD_ALGORITHMS:
+        points = [mean_for(df, algo, "enc_cycles_per_byte", m) for m in MSG_SIZES]
+
+        if all(v is None for v in points):
+            continue
+        ax.plot(
+            range(len(MSG_SIZES)),
+            points,
+            label=ALGORITHM_LABELS[algo],
+            color=ALGORITHM_COLORS[algo],
+            linewidth=2,
+            linestyle = "--" if algo == "aes_128_gcm" else "-",
+            marker="o",
+            markersize=5,
         )
-        .reset_index()
-        .sort_values(group_cols)
-    )
+    ax.set_yscale("log")
+    ax.set_xticks(range(len(MSG_SIZES)))
+    ax.set_xticklabels(MSG_LABELS)
+    ax.set_xlabel("Message Size")
+    ax.set_ylabel("Average Cycles/Byte (log scale)")
+    ax.set_title(f"cycles per byte: AEAD algorithms\n{board} @ 125 MHz, -O2, reference implementations")
+    ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{int(x/1000)}K" if x >= 1000 else f"{int(x)}"))
+    ax.legend()
+    plt.tight_layout()
+    save_figure(fig, output_path, f"{board}_cycles_per_byte.png")
 
-    print("\n=== Benchmark Summary ===")
-    print(summary.to_string(index=False))
+def plot_lwc_only(df, output_dir, board):
+    fig, ax = plt.subplots(figsize=(8, 5))
+    for algo in [a for a in AEAD_ALGORITHMS if a != "aes_128_gcm"]:
+        points = [mean_for(df, algo, "enc_cycles_per_byte", m) for m in MSG_SIZES]
+        if all(v is None for v in points):
+            continue
+        ax.plot(range(len(MSG_SIZES)), points,
+                label=ALGORITHM_LABELS[algo], color=ALGORITHM_COLORS[algo],
+                linewidth=2, marker="o", markersize=5)
+    ax.set_xticks(range(len(MSG_SIZES)))
+    ax.set_xticklabels(MSG_LABELS)
+    ax.set_xlabel("message size")
+    ax.set_ylabel("cycles per byte")
+    ax.set_title(f"cycles per byte — LWC algorithms (linear scale)\n{board} @ 125 MHz, -O2")
+    ax.legend()
+    plt.tight_layout()
+    save_figure(fig, output_dir, f"{board}_lwc_cycles_per_byte.png")
 
-    args.outdir.mkdir(parents=True, exist_ok=True)
-    agg_keys = ["algorithm", "implementation", "board", "msg_len", "ad_len"]
 
-    agg = (
-        df_ok.groupby(agg_keys)
-        .agg(
-            enc_mean=("enc_time_us_per_op", "mean"),
-            dec_mean=("dec_time_us_per_op", "mean"),
-            enc_std=("enc_time_us_per_op", "std"),
-            dec_std=("dec_time_us_per_op", "std"),
-            enc_MBps_mean=("enc_MBps", "mean"),
-            dec_MBps_mean=("dec_MBps", "mean"),
-            enc_MBps_std=("enc_MBps", "std"),
-            dec_MBps_std=("dec_MBps", "std"),
-        )
-        .reset_index()
-    )
-
-    plt.figure()
-    if plot_enc:
-        for ad_len, group in agg.groupby("ad_len"):
-            group = group.sort_values("msg_len")
-            plt.errorbar(group["msg_len"], group["enc_mean"], yerr=group["enc_std"].fillna(0.0), marker='o', capsize=3, label=f'enc ad={ad_len}')
-
-    if plot_dec:
-        for ad_len, group in agg.groupby("ad_len"):
-            group = group.sort_values("msg_len")
-            plt.errorbar(group["msg_len"], group["dec_mean"], yerr=group["dec_std"].fillna(0.0), marker='x', linestyle='--', capsize=3, label=f'dec ad={ad_len}')
-
-    title = f"{df_ok.iloc[0]['algorithm']} ({df_ok.iloc[0]['implementation']}) - {df_ok.iloc[0]['board']}"
-    algos = sorted(set(df_ok["algorithm"].astype(str)))
-    impls = sorted(set(df_ok["implementation"].astype(str)))
-    boards = sorted(set(df_ok["board"].astype(str)))
-
-    if len(algos) == 1 and len(impls) == 1 and len(boards) == 1:
-        title = f"{algos[0]} ({impls[0]}) - {boards[0]}"
-    else:
-        title = f"Comparison: {', '.join(algos)}"
-    plt.title(title)
-    plt.xlabel("Message Length (bytes)")
-    plt.ylabel("Time per Operation (us/op)")
-    plt.xscale("log", base=2)
-    plt.grid(True)
-    plt.legend()
-
-    plot_path = make_plot_filename(args.outdir, df_ok, "time_per_op", args)
-    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-    print(f"\nPlot saved to: {plot_path}")
-    if args.show:
-        plt.show()
-    plt.close()
-
-    plt.figure()
-    if plot_enc:
-        for ad_len, group in agg.groupby("ad_len"):
-            group = group.sort_values("msg_len")
-            plt.errorbar(group["msg_len"], group["enc_MBps_mean"], yerr=group["enc_MBps_std"].fillna(0.0), marker='o', capsize=3, label=f'enc ad={ad_len}')
-
-    if plot_dec:
-        for ad_len, group in agg.groupby("ad_len"):
-            group = group.sort_values("msg_len")
-            plt.errorbar(group["msg_len"], group["dec_MBps_mean"], yerr=group["dec_MBps_std"].fillna(0.0), marker='x', linestyle='--', capsize=3, label=f'dec ad={ad_len}')
-
-    plt.title(title)
-    plt.xlabel("Message Length (bytes)")
-    plt.ylabel("Throughput (MB/s)")
-    plt.xscale("log", base=2)
-    plt.grid(True)
-    plt.legend()
-
-    plot_path = make_plot_filename(args.outdir, df_ok, "throughput_MBps", args)
-    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-    print(f"\nPlot saved to: {plot_path}")
-    if args.show:
-        plt.show()
-    plt.close()
-
-    print("\n=== First 5 Rows with Derived Metrics ===")
-    cols = [
-        "timestamp_iso", "algorithm", "implementation", "board",
-        "msg_len", "ad_len", "iterations",
-        "enc_time_us_per_op", "dec_time_us_per_op",
-        "enc_us_per_byte", "dec_us_per_byte",
-        "enc_MBps", "dec_MBps",
-    ]
-
-    missing_cols = [col for col in cols if col not in df_ok.columns]
-    if missing_cols:
-        raise SystemExit(f"Error: Missing expected columns for display:\n" + "\n".join(f"  - {c}" for c in missing_cols))
-    else:
-        print(df_ok[cols].head(5).to_string(index=False))
-
+def plot_latency_comparison(df, output_dir, board):
+    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+    for ax, msg_size in zip(axes, [16, 1024]):
+        labels, values, colors = [], [], []
+        for algo in AEAD_ALGORITHMS:
+            v = mean_for(df, algo, "enc_time_us_per_op", msg_size)
+            if v is not None:
+                labels.append(ALGORITHM_LABELS[algo])
+                values.append(v)
+                colors.append(ALGORITHM_COLORS[algo])
+        v = mean_for(df, "ml_kem_512", "enc_time_us_per_op", note="keygen")
+        if v is not None:
+            labels.append("ML-KEM-512\n(KeyGen)")
+            values.append(v)
+            colors.append(ALGORITHM_COLORS["ml_kem_512"])
+        bars = ax.bar(range(len(labels)), values, color=colors,
+                      width=0.6, edgecolor="none", zorder=3)
+        ax.set_yscale("log")
+        ax.set_xticks(range(len(labels)))
+        ax.set_xticklabels(labels, fontsize=9, rotation=15, ha="right")
+        ax.set_ylabel("us per operation (log scale)")
+        size_label = f"{msg_size}B" if msg_size < 1024 else f"{msg_size//1024}KB"
+        ax.set_title(f"latency @ {size_label} payload")
+        ax.yaxis.set_major_formatter(ticker.FuncFormatter(us_formatter))
+        for bar, val in zip(bars, values):
+            label = f"{val/1000:.1f}ms" if val >= 1000 else f"{int(val)}us"
+            ax.text(bar.get_x() + bar.get_width() / 2,
+                    bar.get_height() * 1.1, label,
+                    ha="center", va="bottom", fontsize=8, color="#444")
+    fig.suptitle(f"per-operation latency — {board} @ 125 MHz", y=1.02)
+    plt.tight_layout()
+    save_figure(fig, output_dir, f"{board}_latency_comparison.png")
+ 
+ 
+def plot_mlkem_operations(df, output_dir, board):
+    ops = [("keygen", "KeyGen"), ("encap", "Encapsulate"), ("decap", "Decapsulate")]
+    values = [mean_for(df, "ml_kem_512", "enc_time_us_per_op", note=op) or 0
+              for op, _ in ops]
+    fig, ax = plt.subplots(figsize=(6, 4))
+    bars = ax.bar([lbl for _, lbl in ops], values,
+                  color=ALGORITHM_COLORS["ml_kem_512"], width=0.5, edgecolor="none", zorder=3)
+    ref = mean_for(df, "ascon_aead128", "enc_time_us_per_op", msg_len=64)
+    if ref:
+        ax.axhline(ref, color=ALGORITHM_COLORS["ascon_aead128"],
+                   linestyle="--", linewidth=1.5,
+                   label=f"Ascon-128 @ 64B ({ref:.0f}us)")
+        ax.legend()
+    for bar, val in zip(bars, values):
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 200,
+                f"{val/1000:.1f}ms", ha="center", va="bottom", fontsize=10)
+    ax.set_ylabel("us per operation")
+    ax.set_title(f"ML-KEM-512 operation latency\n{board} @ 125 MHz, -O2")
+    ax.yaxis.set_major_formatter(ticker.FuncFormatter(us_formatter))
+    plt.tight_layout()
+    save_figure(fig, output_dir, f"{board}_mlkem_operations.png")
+ 
+ 
+def plot_80pq_overhead(df, output_dir, board):
+    overheads = []
+    for m in MSG_SIZES:
+        base = mean_for(df, "ascon_aead128",  "enc_cycles_per_byte", m)
+        pq   = mean_for(df, "ascon_aead80pq", "enc_cycles_per_byte", m)
+        overheads.append(((pq - base) / base * 100) if base and pq else 0)
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.bar(MSG_LABELS, overheads, color=ALGORITHM_COLORS["ascon_aead80pq"],
+           width=0.5, edgecolor="none", zorder=3)
+    ax.set_xlabel("message size")
+    ax.set_ylabel("overhead vs Ascon-128 (%)")
+    ax.set_title(f"Ascon-80pq overhead over Ascon-128\n{board} @ 125 MHz")
+    ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{x:.0f}%"))
+    plt.tight_layout()
+    save_figure(fig, output_dir, f"{board}_ascon80pq_overhead.png")
+ 
+ 
+def print_summary(df, board):
+    print(f"\n{'='*65}")
+    print(f"ORBIT summary — {board}")
+    print(f"{'='*65}")
+    print(f"{'Algorithm':<20} {'16B':>8} {'256B':>8} {'1KB':>8} {'16KB':>8}  cpb")
+    print(f"{'-'*55}")
+    for algo in AEAD_ALGORITHMS:
+        vals = [mean_for(df, algo, "enc_cycles_per_byte", m)
+                for m in [16, 256, 1024, 16384]]
+        row = "  ".join(f"{v:>8,.0f}" if v else f"{'--':>8}" for v in vals)
+        print(f"{ALGORITHM_LABELS[algo]:<20} {row}")
+    print(f"\n{'Algorithm':<20} {'KeyGen':>10} {'Encap':>10} {'Decap':>10}  ms")
+    print(f"{'-'*55}")
+    vals = [mean_for(df, "ml_kem_512", "enc_time_us_per_op", note=op)
+            for op in ["keygen", "encap", "decap"]]
+    row = "  ".join(f"{v/1000:>10.2f}" if v else f"{'--':>10}" for v in vals)
+    print(f"{'ML-KEM-512':<20} {row}")
+    print(f"{'='*65}\n")
+ 
+ 
+def main():
+    parser = argparse.ArgumentParser(description="ORBIT benchmark plotter")
+    parser.add_argument("--results_dir", default="results")
+    parser.add_argument("--output_dir",  default="plots")
+    parser.add_argument("--board",       default="pico")
+    args = parser.parse_args()
+ 
+    os.makedirs(args.output_dir, exist_ok=True)
+    apply_style()
+ 
+    df = load_results(args.results_dir, board=args.board)
+    if df.empty:
+        print("No data loaded. Check your results directory and board name.")
+        return
+ 
+    print(f"Loaded {len(df)} rows -- algorithms: {df['algorithm'].unique().tolist()}")
+ 
+    plot_cycles_per_byte(df, args.output_dir, args.board)
+    plot_lwc_only(df, args.output_dir, args.board)
+    plot_latency_comparison(df, args.output_dir, args.board)
+    plot_mlkem_operations(df, args.output_dir, args.board)
+    plot_80pq_overhead(df, args.output_dir, args.board)
+    print_summary(df, args.board)
+ 
+    print(f"All plots saved to {args.output_dir}/")
+ 
+ 
 if __name__ == "__main__":
     main()

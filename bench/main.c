@@ -239,11 +239,12 @@ static void bench_kem_op(const char *op_name, uint32_t iterations, csv_row_t *ro
 
 int main(void) {
     platform_init();
+    printf("ORBIT benchmark starting...\r\n");
 
-    while (!stdio_usb_connected()) {
-        sleep_ms(100);
+    while (!platform_stdio_ready()) {
+        platform_delay_ms(100);
     }
-    sleep_ms(500);  
+    platform_delay_ms(500); 
 
     print_csv_header();
 #ifdef IS_KEM
@@ -314,7 +315,7 @@ int main(void) {
     }
 #endif
 
-    printf("ECLIPSE benchmark completed.\n");
+    printf("ORBIT benchmark completed.\n");
     fflush(stdout);
 
     while (1) {}
