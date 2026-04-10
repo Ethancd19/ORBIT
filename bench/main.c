@@ -317,7 +317,11 @@ int main(void) {
 
     platform_puts("ORBIT benchmark completed.\r\n");
 
+#ifdef PLATFORM_EXIT_AFTER_BENCHMARK
+    return 0;
+#else
     while (1) {}
 
     return 0;
+#endif
 }

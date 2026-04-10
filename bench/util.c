@@ -327,7 +327,7 @@ void print_csv_row(const csv_row_t *row) {
         csv_escape(row->compiler),
         csv_escape(row->compiler_version),
         csv_escape(row->cflags),
-        (uint64_t)row->freq_hz,
+        (unsigned long long)row->freq_hz,
 
         /* Inputs */
         row->msg_len,
@@ -335,11 +335,11 @@ void print_csv_row(const csv_row_t *row) {
         row->key_len,
         row->nonce_len,
         row->tag_len,
-        (uint64_t)row->iterations,
+        (unsigned long long)row->iterations,
 
         /* Timing */
-        (uint64_t)row->enc_cycles_total,
-        (uint64_t)row->dec_cycles_total,
+        (unsigned long long)row->enc_cycles_total,
+        (unsigned long long)row->dec_cycles_total,
         row->enc_cycles_per_byte,
         row->dec_cycles_per_byte,
         row->enc_time_us_total,
@@ -348,9 +348,9 @@ void print_csv_row(const csv_row_t *row) {
         row->dec_time_us_per_op,
 
         /* Memory usage */
-        (uint64_t)row->flash_bytes,
-        (uint64_t)row->ram_bytes,
-        (uint64_t)row->stack_bytes_peak,
+        (unsigned long long)row->flash_bytes,
+        (unsigned long long)row->ram_bytes,
+        (unsigned long long)row->stack_bytes_peak,
 
         /* Energy usage */
         row->energy_uJ_enc_total,

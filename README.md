@@ -53,7 +53,7 @@ ORBIT/
 │   ├── stm32/platform.h    # STM32F446: DWT CYCCNT cycle counter
 │   ├── nrf52/platform.h    # nRF52832: DWT CYCCNT cycle counter
 │   ├── esp32c6/platform.h  # ESP32-C6: RISC-V CSR cycle register
-│   └── rpi5/platform.h     # RPi5: clock_gettime(CLOCK_MONOTONIC)
+│   └── rpi5/platform.h     # RPi5: native Linux timer/counter backend
 ├── results/
 │   ├── archived/           # Preliminary single-run data (superseded)
 │   └── *.csv               # Final 5-run benchmark datasets
@@ -111,12 +111,19 @@ chmod +x setup.sh
 
 This handles everything automatically:
 
-- System dependencies (`cmake`, `gcc-arm-none-eabi`, `build-essential`, `libusb`, etc.)
+- Ubuntu packages for Pico and STM32 workflows (`cmake`, `gcc-arm-none-eabi`, `openocd`, `build-essential`, `libusb`, etc.)
 - Pico SDK clone and submodule init at `~/pico-sdk` with `PICO_SDK_PATH` added to `~/.bashrc`
-- picotool build, install, and udev rules (enables automatic BOOTSEL reboot for runs 2–5)
+- STM32CubeF4 clone and submodule init at `~/stm32cubeF4` with `STM32CUBE_F4_PATH` added to `~/.bashrc`
+- picotool build/install to `~/.local`, plus udev rules
 - Python virtual environment at `.venv/` with all dependencies installed
 - Passwordless sudo rule for `mount`/`umount` at `/etc/sudoers.d/orbit`
 - `/mnt/pico` mount point
+
+The build system looks for STM32CubeF4 at `~/stm32cubeF4` by default. Override with:
+
+```bash
+export STM32CUBE_F4_PATH=/path/to/STM32CubeF4
+```
 
 ---
 
@@ -137,106 +144,174 @@ echo 'cd ~/projects/ORBIT && source .venv/bin/activate' >> ~/.bashrc
 ### Step 4: Verify
 
 ```bash
-python3 --version           # 3.12.x
-cmake --version             # 3.16+
-arm-none-eabi-gcc --version
-picotool version
+source ~/.bashrc
+source .venv/bin/activate
+
+python3 tools/orbit.py --check
 ```
+
+This verifies the toolchain and board-specific prerequisites used by ORBIT:
+
+- `cmake`, `arm-none-eabi-gcc`, and Python
+- `PICO_SDK_PATH`, `picotool`, `/mnt/pico`, and `attach_pico.ps1`
+- `STM32CUBE_F4_PATH` and `openocd`
+- Visible USB serial devices such as `/dev/ttyACM0`
 
 ---
 
 ## Building
 
-### Pico (ARM Cortex-M0+, Pico SDK)
+[orbit.py](tools/orbit.py) handles all building automatically. Build artifacts are placed in `build/` and are rebuilt automatically when switching boards or algorithms.
+
+To build firmware without flashing or capturing serial output:
 
 ```bash
-source .venv/bin/activate
-
-cmake -S . -B build \
-    -DBOARD=pico \
-    -DALGO_SELECTED=ascon_aead128
-
-cmake --build build -- -j4
+python3 tools/orbit.py --board pico --algo ascon_aead128 --build-only
 ```
 
-Output: `build/ORBIT_ascon_aead128_pico.uf2`
+Use `--clean` to force a clean rebuild when switching boards:
 
-Use `--clean` flag in orbit.py or delete `build/` manually when switching algorithms or boards.
+```bash
+python3 tools/orbit.py --board stm32 --algo ascon_aead128 --runs 1 --clean
+```
 
-**BOARD values:** `pico`, `stm32`, `nrf52`
+**Supported boards:** `pico`, `stm32`, `nrf52`, `esp32c6`, `rpi5`
 
-**ALGO_SELECTED values:** `ascon_aead128`, `ascon_aead80pq`, `gift_cofb`, `aes_128_gcm`, `ml_kem_512`
+**Supported algorithms:** `ascon_aead128`, `ascon_aead80pq`, `gift_cofb`, `aes_128_gcm`, `ml_kem_512`
 
-### STM32 Nucleo F446RE (ARM Cortex-M4F)
+### Board-specific dependencies
 
-> Requires STM32CubeMX HAL or bare-metal CMSIS headers.
-> **TODO: in progress.**
-
-### nRF52832 PCA10040 (ARM Cortex-M4F)
-
-> Requires nRF5 SDK. Set `NRF5_SDK_PATH` environment variable.
-> **TODO: in progress.**
-
-### ESP32-C6 DevKitC-1 (RISC-V RV32IMAC)
-
-> Requires ESP-IDF v5.x. ESP32-C6 uses a separate build system.
-> **TODO: ESP-IDF project under `platforms/esp32c6/` — in progress.**
-
-### Raspberry Pi 5 (Linux, native GCC)
-
-> Compile and run natively on the Pi. No cross-compilation needed.
-> Requires `libgpiod-dev`: `sudo apt install libgpiod-dev`
-> **TODO: native CMake target — in progress.**
+| Board    | Extra dependency | How to install                                                  |
+| -------- | ---------------- | --------------------------------------------------------------- |
+| Pico     | Pico SDK         | Handled by `setup.sh`                                           |
+| STM32    | STM32CubeF4      | Handled by `setup.sh`; override with `STM32CUBE_F4_PATH` if needed |
+| nRF52832 | nRF5 SDK         | Set `NRF5_SDK_PATH`: in progress                                |
+| ESP32-C6 | ESP-IDF v5.x     | Separate build system: in progress                              |
+| RPi5     | Native Linux toolchain | `sudo apt install build-essential cmake python3 python3-venv` |
 
 ---
 
 ## Running Benchmarks
 
-### Automated mode (recommended)
+Before the first run on a new machine:
+
+```bash
+source ~/.bashrc
+source .venv/bin/activate
+python3 tools/orbit.py --check
+```
+
+### Automated mode (recommended for USB-attached boards)
 
 ```bash
 source .venv/bin/activate
 
 python3 tools/orbit.py \
-  --board pico \
-  --algo ascon_aead128 \
+  --board <board> \
+  --algo <algorithm> \
   --runs 5 \
   --flash
 ```
 
-Results save to `results/pico_ascon_aead128.csv`.
+Results save to `results/<board>_<algorithm>.csv`.
+
+#### Pico example
+
+```bash
+python3 tools/orbit.py --board pico --algo ascon_aead128 --runs 5 --flash
+```
+
+#### STM32 example
+
+```bash
+python3 tools/orbit.py --board stm32 --algo ascon_aead128 --runs 5 --flash
+```
+
+> Each run automatically reflashes the board via OpenOCD and captures serial output.
+
+#### RPi5 example
+
+Run this directly on the Raspberry Pi 5 itself:
+
+```bash
+python3 tools/orbit.py --board rpi5 --algo ascon_aead128 --runs 5
+```
+
+The RPi5 target is a native Linux executable. ORBIT builds the binary locally, runs it on the Pi, captures stdout directly, and writes `results/rpi5_<algorithm>.csv`.
 
 ### Available flags
 
-| Flag                | Description                                                |
-| ------------------- | ---------------------------------------------------------- |
-| `--board`           | Target board (`pico`, `stm32`, `nrf52`, `esp32c6`, `rpi5`) |
-| `--algo`            | Algorithm to benchmark                                     |
-| `--runs`            | Independent runs (default: 5)                              |
-| `--flash`           | Auto-flash firmware after build                            |
-| `--clean`           | Clean build directory first                                |
-| `--output`          | Custom output CSV path                                     |
-| `--port`            | Serial port override (default: auto-detect)                |
-| `--postprocess CSV` | Fix epoch timestamps in an existing CSV                    |
+| Flag                | Description                                                          |
+| ------------------- | -------------------------------------------------------------------- |
+| `--board`           | Target board (`pico`, `stm32`, `nrf52`, `esp32c6`, `rpi5`)           |
+| `--algo`            | Algorithm to benchmark                                               |
+| `--runs`            | Independent runs (default: 5)                                        |
+| `--flash`           | Auto-flash firmware after build                                      |
+| `--build-only`      | Build firmware and exit without flashing or serial capture           |
+| `--check`           | Verify local board prerequisites and exit                            |
+| `--clean`           | Clean build directory first                                          |
+| `--output`          | Custom output CSV path                                               |
+| `--port`            | Serial port override (recommended when multiple USB serial devices exist) |
+| `--postprocess CSV` | Fix epoch timestamps in an existing CSV                              |
 
 ### Per-run workflow (Pico + WSL2)
 
-**Run 1 — manual BOOTSEL entry required (no firmware on board yet):**
+**Run 1:** [orbit.py](tools/orbit.py) prompts you to put the Pico in BOOTSEL mode:
 
 1. Hold the BOOTSEL button
 2. Unplug the USB cable
 3. Plug the USB cable back in
-4. Release BOOTSEL — the RPI-RP2 drive should appear in Windows
-5. In PowerShell: `usbipd attach --wsl --busid <busid>`
-   (find busid with `usbipd list`: look for "RP2 Boot", VID:PID `2e8a:0003`)
-6. Press Enter in the WSL2 terminal
+4. Release BOOTSEL
+5. Press Enter in the WSL2 terminal when prompted
 
-**Runs 2–5 — fully automatic:**
+[orbit.py](tools/orbit.py) then automatically finds the device, attaches it via usbipd, mounts the drive at `/mnt/pico`, and copies the UF2.
 
-- orbit.py reboots the Pico into BOOTSEL via picotool
-- Runs `scripts/attach_pico.ps1` via `powershell.exe` from WSL2 automatically
-- Scans for the device, mounts it, and copies the UF2
-- Just press Enter when prompted
+**Runs 2–5:** [orbit.py](tools/orbit.py) attempts to reboot the Pico into BOOTSEL with `picotool`, re-attach it via `usbipd`, and remount `/mnt/pico` automatically.
+
+If the auto-mount step fails, ORBIT falls back to prompting you for a manual mount:
+
+```bash
+lsblk
+sudo mount -o rw,uid=$(id -u),gid=$(id -g) /dev/sdX1 /mnt/pico
+```
+
+### Per-run workflow (STM32 + WSL2)
+
+The ST-LINK must be attached to WSL2 once before running [orbit.py](tools/orbit.py). In PowerShell:
+
+```powershell
+usbipd attach --wsl --busid <busid>
+```
+
+Find the busid with `usbipd list` (look for "STM32 STLink", VID:PID `0483:374b`).
+
+After that, [orbit.py](tools/orbit.py) with `--flash` handles flashing via OpenOCD and captures serial output automatically for every run.
+
+If OpenOCD needs a non-default interface or target config, override it before running:
+
+```bash
+export ORBIT_STM32_OPENOCD_CFG="interface/stlink.cfg -f target/stm32f4x.cfg"
+```
+
+If more than one USB serial device is visible in WSL2, pass the board port explicitly:
+
+```bash
+python3 tools/orbit.py --board stm32 --algo ascon_aead128 --runs 5 --flash --port /dev/ttyACM0
+```
+
+### Manual flash mode
+
+If you omit `--flash`, ORBIT still builds and captures results, but it waits for you to flash or reset the board yourself between runs.
+
+### Native workflow (RPi5)
+
+The Raspberry Pi 5 does not use USB flashing or serial capture. Instead:
+
+1. Clone ORBIT directly onto the Pi
+2. Run `./setup.sh` or install the native Linux prerequisites manually
+3. Build and execute the benchmark locally with `python3 tools/orbit.py --board rpi5 --algo <algorithm> --runs 5`
+
+`--flash` is ignored for `rpi5` because there is no device flashing step.
 
 ### Fixing timestamps on existing CSVs
 
@@ -333,6 +408,7 @@ One CSV row per (algorithm, platform, message size) per run, prefixed with a `ru
 | `energy_uJ_enc_total` | Total energy: encryption window (INA226)        |
 | `avg_power_mW_enc`    | Average power draw during encryption            |
 | `ok`                  | 1 = KAT passed, 0 = KAT failed                  |
+| `notes`               | Any output notes made during benchmark          |
 
 ---
 
@@ -352,7 +428,7 @@ Preliminary single-run data (collected before 5-run protocol): `results/archived
 | STM32F446 (Nucleo)  | DWT CYCCNT                     | 1 cycle    |
 | nRF52832 (PCA10040) | DWT CYCCNT                     | 1 cycle    |
 | ESP32-C6            | RISC-V CSR `cycle`             | 1 cycle    |
-| BCM2712 (RPi5)      | clock_gettime(CLOCK_MONOTONIC) | ~1 ns      |
+| BCM2712 (RPi5)      | ARM generic timer (`cntvct_el0`) with `clock_gettime` fallback | ~1 tick |
 
 > The RP2040 Cortex-M0+ does not implement DWT CYCCNT. ORBIT uses SysTick combined with the RP2040 hardware timer for equivalent single-cycle resolution within each microsecond tick.
 
@@ -365,15 +441,16 @@ Running on native Linux (Ubuntu, Debian, etc.) without WSL2:
 - Skip Step 1 entirely (usbipd-win is not needed)
 - USB devices are directly accessible as `/dev/ttyACM0` etc.
 - The Pico BOOTSEL drive mounts automatically on most distros
-- `scripts/attach_pico.ps1` is not used. The PowerShell call in `orbit.py`'s `flash_pico()` will silently fail but the manual mount fallback will still work
+- `scripts/attach_pico.ps1` is not used. The PowerShell call in [orbit.py](tools/orbit.py)'s `flash_pico()` will silently fail but the manual mount fallback will still work
 - picotool BOOTSEL reboot works identically
+- The Raspberry Pi 5 should be run directly as its own native Linux host with `--board rpi5`
 - Everything else is the same
 
 ---
 
 ## Citation
 
-```
+```text
 Duval, E.C. (2026). Cross-Architecture Benchmarking of Lightweight and
 Post-Quantum Cryptography on Constrained IoT Microcontrollers.
 M.Eng. Project & Report, Virginia Polyechnic Institute and State University

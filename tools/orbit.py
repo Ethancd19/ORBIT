@@ -54,7 +54,7 @@ BOARDS = {
     "rpi5": {
         "name": "Raspberry Pi 5",
         "arch": "aarch64",
-        "flash_method": "ssh",
+        "flash_method": "local",
         "baud": None,
     },
 }
@@ -85,6 +85,14 @@ DEFAULT_CSV_HEADER = (
     "energy_uJ_per_byte_enc,energy_uJ_per_byte_dec,avg_power_mW_enc,"
     "avg_power_mW_dec,ok,notes"
 )
+
+
+def is_wsl():
+    try:
+        with open("/proc/version", "r", encoding="utf-8") as f:
+            return "microsoft" in f.read().lower()
+    except OSError:
+        return False
 
 FLASH_FUNCS = {
     "pico": lambda binary: flash_pico(binary),
@@ -176,6 +184,180 @@ def run_command(cmd, cwd=None):
         print(f"Command failed with exit code {ret}")
         sys.exit(1)
 
+
+def run_capture(cmd):
+    return subprocess.run(cmd, capture_output=True, text=True)
+
+
+def command_exists(name):
+    return shutil.which(name) is not None
+
+
+def check_version_command(cmd):
+    try:
+        result = run_capture(cmd)
+    except OSError as exc:
+        return False, str(exc)
+
+    output = (result.stdout or result.stderr).strip().splitlines()
+    message = output[0] if output else "command returned no version text"
+    return result.returncode == 0, message
+
+
+def resolve_stm32cube_path():
+    return (
+        os.environ.get("STM32CUBE_F4_PATH")
+        or os.path.join(os.path.expanduser("~"), "stm32cubeF4")
+    )
+
+
+def resolve_pico_sdk_path():
+    return os.environ.get("PICO_SDK_PATH")
+
+
+def check_item(label, ok, detail, failures, required=True):
+    status = "OK" if ok else "MISSING"
+    print(f"[{status:<7}] {label}: {detail}")
+    if required and not ok:
+        failures.append(label)
+
+
+def run_prereq_check(board=None):
+    failures = []
+
+    print("== ORBIT host check ==")
+    print(f"Project root: {PROJECT_ROOT}")
+    print(f"Environment: {'WSL2' if is_wsl() else 'native Linux/other'}")
+
+    python_ok = sys.version_info >= (3, 12)
+    check_item(
+        "Python",
+        python_ok,
+        sys.version.split()[0],
+        failures,
+    )
+
+    for label, command in (
+        ("cmake", ["cmake", "--version"]),
+        ("arm-none-eabi-gcc", ["arm-none-eabi-gcc", "--version"]),
+    ):
+        if command_exists(command[0]):
+            ok, detail = check_version_command(command)
+            check_item(label, ok, detail, failures)
+        else:
+            check_item(label, False, "not found on PATH", failures)
+
+    if os.path.isdir(os.path.join(PROJECT_ROOT, ".venv")):
+        check_item(".venv", True, "present", failures)
+    else:
+        check_item(".venv", False, "missing; run ./setup.sh", failures)
+
+    ports = [port.device for port in serial.tools.list_ports.comports()]
+    port_detail = ", ".join(ports) if ports else "no ttyACM/ttyUSB devices visible right now"
+    check_item("Serial devices", True, port_detail, failures, required=False)
+
+    boards_to_check = [board] if board else ["pico", "stm32", "rpi5"]
+
+    if "pico" in boards_to_check:
+        print("\n== Pico ==")
+        pico_sdk_path = resolve_pico_sdk_path()
+        pico_sdk_ok = bool(
+            pico_sdk_path
+            and os.path.exists(
+                os.path.join(pico_sdk_path, "external", "pico_sdk_import.cmake")
+            )
+        )
+        check_item(
+            "PICO_SDK_PATH",
+            pico_sdk_ok,
+            pico_sdk_path or "unset",
+            failures,
+        )
+
+        if command_exists("picotool"):
+            ok, detail = check_version_command(["picotool", "version"])
+            check_item("picotool", ok, detail, failures)
+        else:
+            check_item("picotool", False, "not found on PATH", failures)
+
+        mount_ok = os.path.isdir("/mnt/pico")
+        check_item(
+            "/mnt/pico",
+            mount_ok,
+            "present" if mount_ok else "missing; run ./setup.sh",
+            failures,
+        )
+
+        attach_script = os.path.join(PROJECT_ROOT, "scripts", "attach_pico.ps1")
+        check_item(
+            "attach_pico.ps1",
+            os.path.exists(attach_script),
+            attach_script,
+            failures,
+        )
+
+        if is_wsl():
+            check_item(
+                "powershell.exe",
+                command_exists("powershell.exe"),
+                shutil.which("powershell.exe") or "not found on PATH",
+                failures,
+            )
+
+    if "stm32" in boards_to_check:
+        print("\n== STM32 ==")
+        stm32cube_path = resolve_stm32cube_path()
+        stm32cube_ok = os.path.exists(
+            os.path.join(
+                stm32cube_path,
+                "Drivers",
+                "CMSIS",
+                "Device",
+                "ST",
+                "STM32F4xx",
+                "Include",
+                "stm32f4xx.h",
+            )
+        )
+        check_item(
+            "STM32CUBE_F4_PATH",
+            stm32cube_ok,
+            stm32cube_path,
+            failures,
+        )
+
+        if command_exists("openocd"):
+            ok, detail = check_version_command(["openocd", "--version"])
+            check_item("openocd", ok, detail, failures)
+        else:
+            check_item("openocd", False, "not found on PATH", failures)
+
+        openocd_cfg = os.environ.get(
+            "ORBIT_STM32_OPENOCD_CFG",
+            "interface/stlink.cfg -f target/stm32f4x.cfg",
+        )
+        check_item("OpenOCD config", True, openocd_cfg, failures, required=False)
+
+    if "rpi5" in boards_to_check:
+        print("\n== RPi5 ==")
+        for label, command in (
+            ("cc", ["cc", "--version"]),
+        ):
+            if command_exists(command[0]):
+                ok, detail = check_version_command(command)
+                check_item(label, ok, detail, failures)
+            else:
+                check_item(label, False, "not found on PATH", failures)
+
+    if failures:
+        print("\nMissing prerequisites:")
+        for item in failures:
+            print(f"  - {item}")
+        return 1
+
+    print("\nAll required prerequisites are present.")
+    return 0
+
 def find_build_artifact(board, algo):
     target_name = f"ORBIT_{algo}_{board}"
     candidates = []
@@ -190,6 +372,11 @@ def find_build_artifact(board, algo):
             os.path.join(BUILD_DIR, f"{target_name}.bin"),
             os.path.join(BUILD_DIR, target_name),
         ])
+    elif board == "rpi5":
+        candidates.extend([
+            os.path.join(BUILD_DIR, target_name),
+            os.path.join(BUILD_DIR, f"{target_name}.elf"),
+        ])
     else:
         candidates.extend([
             os.path.join(BUILD_DIR, f"{target_name}.elf"),
@@ -201,7 +388,48 @@ def find_build_artifact(board, algo):
             return path
     return None
 
+
+def _cache_value(cache_path, key):
+    if not os.path.exists(cache_path):
+        return None
+
+    prefix = f"{key}:"
+    with open(cache_path, "r", encoding="utf-8", errors="ignore") as f:
+        for line in f:
+            if line.startswith(prefix):
+                _, value = line.split("=", 1)
+                return value.strip()
+    return None
+
+
+def should_clean_for_board_switch(board):
+    cache_path = os.path.join(BUILD_DIR, "CMakeCache.txt")
+    if not os.path.exists(cache_path):
+        return False
+
+    cached_board = _cache_value(cache_path, "BOARD")
+    cached_c_compiler = _cache_value(cache_path, "CMAKE_C_COMPILER") or ""
+    cached_pico_board = _cache_value(cache_path, "PICO_BOARD")
+
+    if cached_board and cached_board != board:
+        return True
+
+    if board == "rpi5" and "arm-none-eabi" in cached_c_compiler:
+        return True
+
+    if board in {"pico", "stm32", "nrf52"} and cached_board == "rpi5":
+        return True
+
+    if board != "pico" and cached_pico_board:
+        return True
+
+    return False
+
 def build(board, algo, clean=False):
+    if not clean and should_clean_for_board_switch(board):
+        log("Detected incompatible cached build configuration; cleaning build directory first...")
+        clean = True
+
     if clean and os.path.exists(BUILD_DIR):
         log(f"Cleaning build directory '{BUILD_DIR}'...")
         shutil.rmtree(BUILD_DIR)
@@ -344,6 +572,19 @@ def flash_pico(binary_path):
     _attach_pico_wsl()
     time.sleep(3)
 
+def flash_pico_for_run(binary_path, run):
+    if run == 1:
+        log("Run 1 requires Pico in BOOTSEL mode before flashing:")
+        log("  1. Hold BOOTSEL button")
+        log("  2. Unplug USB")
+        log("  3. Plug USB back in")
+        log("  4. Release BOOTSEL")
+        input("Press Enter once Pico is in BOOTSEL mode ...")
+    else:
+        log(f"Run {run}: picotool will reboot Pico into BOOTSEL automatically...")
+
+    flash_pico(binary_path)
+
 def flash_stm32(binary_path):
     openocd_cfg = os.environ.get(
         "ORBIT_STM32_OPENOCD_CFG",
@@ -415,6 +656,51 @@ def capture_serial(port, baud=115200, timeout=300):
         sys.exit(1)
     return lines
 
+
+def capture_local_process(binary_path, timeout=300):
+    log(f"Running local benchmark binary: {binary_path}")
+    lines = []
+
+    try:
+        with subprocess.Popen(
+            [binary_path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        ) as proc:
+            start = time.time()
+            assert proc.stdout is not None
+
+            while True:
+                if time.time() - start > timeout:
+                    proc.kill()
+                    log("Local benchmark timed out")
+                    sys.exit(1)
+
+                line = proc.stdout.readline()
+                if line:
+                    clean = line.rstrip("\r\n")
+                    if clean:
+                        print(f"    {clean}")
+                        lines.append(clean)
+                        if "ORBIT benchmark completed" in clean:
+                            break
+                    continue
+
+                if proc.poll() is not None:
+                    break
+
+            ret = proc.wait(timeout=5)
+            if ret != 0:
+                log(f"Local benchmark exited with code {ret}")
+                sys.exit(1)
+    except OSError as e:
+        log(f"Error running local benchmark: {e}")
+        sys.exit(1)
+
+    return lines
+
 def save_results(lines, output_path, run_index, total_runs, board, algo):
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
 
@@ -478,6 +764,8 @@ Examples:
     parser.add_argument("--runs", type=int, default=5, help="Number of independent runs (default: 5)")
     parser.add_argument("--output", default=None, help="Output CSV file path (default: results/<board>_<algo>.csv)")
     parser.add_argument("--flash", action="store_true", help="Automatically flash the firmware after building")
+    parser.add_argument("--build-only", action="store_true", help="Build firmware and exit without flashing or capturing serial output")
+    parser.add_argument("--check", action="store_true", help="Check local prerequisites for Pico/STM32 workflows and exit")
     parser.add_argument("--clean", action="store_true", help="Clean build directory before building")
     parser.add_argument("--port", default=None, help="Serial port to use for capturing results (default: auto-detect)")
     parser.add_argument("--postprocess", metavar="CSV", help="Post-process an existing CSV file to fix timestamps and run IDs")
@@ -486,6 +774,9 @@ Examples:
     if args.postprocess:
         postprocess_csv(args.postprocess)
         return
+
+    if args.check:
+        sys.exit(run_prereq_check(board=args.board))
 
     if not args.board or not args.algo:
         print("\n=== ORBIT Interactive Mode ===")
@@ -529,7 +820,8 @@ Examples:
         os.makedirs(RESULTS_DIR, exist_ok=True)
         args.output = os.path.join(RESULTS_DIR, f"{args.board}_{args.algo}.csv")
 
-    archive_existing_result(args.output)
+    if not args.build_only:
+        archive_existing_result(args.output)
 
     log(f"Board:      {board_info['name']}")
     log(f"Algorithm:  {args.algo}")
@@ -538,24 +830,26 @@ Examples:
 
     binary = build(args.board, args.algo, clean=args.clean)
 
+    if args.build_only:
+        log("Build-only mode enabled; skipping flashing and serial capture.")
+        return
+
     slow_algos = {"aes_128_gcm", "ml_kem_512"}
     serial_timeout = 3600 if args.algo in slow_algos else 300
 
     for run in range(1, args.runs + 1):
         log(f"=== Starting run {run}/{args.runs} ===")
 
+        if args.board == "rpi5":
+            if args.flash and run == 1:
+                log("RPi5 runs locally; ignoring --flash.")
+            lines = capture_local_process(binary, timeout=serial_timeout)
+            save_results(lines, args.output, run, args.runs, args.board, args.algo)
+            continue
+
         if args.flash:
             if args.board == "pico":
-                if run == 1:
-                    log("Run 1 requires manual BOOTSEL entry (no firmware to reboot from):")
-                    log("  1. Hold BOOTSEL button")
-                    log("  2. Unplug USB")
-                    log("  3. Plug USB back in")
-                    log("  4. Release BOOTSEL")
-                    input("Press Enter once Pico is in BOOTSEL mode ...")
-                else:
-                    log(f"Run {run}: picotool will reboot Pico into BOOTSEL automatically...")
-                FLASH_FUNCS[args.board](binary)
+                flash_pico_for_run(binary, run)
             elif args.board == "stm32":
                 if run == 1:
                     log("Run 1 will flash STM32 via OpenOCD and then capture serial output.")
@@ -575,7 +869,7 @@ Examples:
             else:
                 log("Reflash or reset the board for the next run:")
                 if args.board == "pico":
-                    log("  Pico: hold BOOTSEL, re-plug USB, copy the UF2 to RPI-RP2")
+                    log("  Pico: put the board in BOOTSEL mode, copy the UF2, then let it reboot")
                 elif args.board == "stm32":
                     log("  STM32: flash/reset the board so the benchmark restarts from reset")
                 log(f"  Artifact: {binary}")
