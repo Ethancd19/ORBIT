@@ -7,6 +7,7 @@ PICO_SDK_PATH_DEFAULT="${PICO_SDK_PATH:-$HOME/pico-sdk}"
 STM32CUBE_F4_PATH_DEFAULT="${STM32CUBE_F4_PATH:-$HOME/stm32cubeF4}"
 PICO_TOOL_PREFIX="${HOME}/.local"
 SUDOERS_FILE="/etc/sudoers.d/orbit"
+PICOTOOL_REPO_URL="https://github.com/raspberrypi/picotool.git"
 
 APT_PACKAGES=(
   build-essential
@@ -79,7 +80,18 @@ setup_stm32cube() {
   git -C "${STM32CUBE_F4_PATH_DEFAULT}" submodule update --init --recursive
 }
 
+setup_picotool_source() {
+  if [[ ! -d "${REPO_ROOT}/picotool/.git" ]]; then
+    info "picotool source not found in the repository checkout; cloning it into ${REPO_ROOT}/picotool..."
+    rm -rf "${REPO_ROOT}/picotool"
+    git clone "${PICOTOOL_REPO_URL}" "${REPO_ROOT}/picotool"
+  else
+    info "picotool source already exists at ${REPO_ROOT}/picotool."
+  fi
+}
+
 install_picotool() {
+  setup_picotool_source
   info "Building and installing picotool from the vendored source tree..."
   cmake -S "${REPO_ROOT}/picotool" -B "${REPO_ROOT}/picotool/build" \
     -DCMAKE_BUILD_TYPE=Release \

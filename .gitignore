@@ -54,6 +54,7 @@ cmake_install.cmake
 Makefile
 *.cmake
 !CMakeLists.txt
+!cmake/*.cmake
 *.ninja
 .ninja_*
 compile_commands.json
