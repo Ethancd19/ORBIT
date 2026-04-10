@@ -66,6 +66,7 @@ setup_pico_sdk() {
 
   info "Initializing pico-sdk submodules..."
   git -C "${PICO_SDK_PATH_DEFAULT}" submodule update --init
+  export PICO_SDK_PATH="${PICO_SDK_PATH_DEFAULT}"
 }
 
 setup_stm32cube() {
@@ -78,6 +79,7 @@ setup_stm32cube() {
 
   info "Initializing STM32CubeF4 submodules..."
   git -C "${STM32CUBE_F4_PATH_DEFAULT}" submodule update --init --recursive
+  export STM32CUBE_F4_PATH="${STM32CUBE_F4_PATH_DEFAULT}"
 }
 
 setup_picotool_source() {
